@@ -9,6 +9,7 @@ from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QStackedWidget
 
 from core.bus import bus
 from core.models import Transaction, TransactionEvent
+from core.reporter import Reporter
 from core.sampler import DataSampler
 from core.square import SquareMockClient   # swap for SquareClient when live
 from ui.theme import BG_DARK, GLOBAL_STYLESHEET
@@ -116,6 +117,14 @@ class MainWindow(QWidget):
         self._sampler.temp_sample.connect(self._dashboard.mini.push_temp)
         self._sampler.start()
 
+        # GKM reporter — pushes heartbeats and transactions to Firestore
+        self._reporter = Reporter(self)
+        self._sampler.cpu_sample.connect(self._reporter.on_cpu_sample)
+        self._sampler.temp_sample.connect(self._reporter.on_temp_sample)
+        bus.transaction_added.connect(self._reporter.on_transaction_added)
+        bus.transaction_event.connect(self._reporter.on_transaction_event)
+        self._reporter.start()
+
         # Square mock client — listens to bus.payment_requested
         self._square = SquareMockClient(self)
 
@@ -141,6 +150,7 @@ class MainWindow(QWidget):
         self._stack.setCurrentIndex(idx)
 
     def closeEvent(self, event):
+        self._reporter.stop()
         self._sampler.stop()
         super().closeEvent(event)
 

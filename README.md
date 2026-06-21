@@ -36,6 +36,7 @@ Square Payment Terminal
 | X-axis time labels on graphs | ✅ Working |
 | Time-window selector (1 min/5 min/1 hr/24 hr) | ✅ Working |
 | Test suite (77 tests, pytest-qt) | ✅ Passing |
+| GKM reporter (heartbeat + transaction sync) | ✅ Implemented — needs Firebase credentials |
 | MDB Pi Hat integration | ⏳ Hardware arriving ~2026-06-23 |
 | Square Web API integration | ⏳ Needs credentials (see below) |
 
@@ -50,6 +51,7 @@ greenstar-rpi-kiosk/
 │   ├── bus.py                  # AppBus singleton — app-wide Qt signals
 │   ├── models.py               # Transaction + TransactionEvent dataclasses
 │   ├── sampler.py              # DataSampler — CPU % and temperature via psutil
+│   ├── reporter.py             # GKM Reporter — heartbeat + transaction sync to Firestore
 │   ├── square.py               # SquareMockClient (active) + SquareClient skeleton
 │   └── mdb.py                  # MDB Pi Hat stub (to be implemented)
 ├── ui/
@@ -205,6 +207,44 @@ During development, `SquareMockClient` in `main.py` simulates the full Square Te
 Square Terminal API does not natively support Bitcoin. Recommended path:
 - **Cash App Pay** — Square terminals can offer Cash App Pay as a payment method, which supports crypto (incl. BTC). Enable via `payment_options.crypto_enabled: true` in the checkout body (already in `SquareMockClient` and `SquareClient`).
 - Confirm with Square developer support whether your terminal hardware supports Cash App Pay before going live.
+
+## GreenStar Kiosk Manager (GKM) Integration (`core/reporter.py`)
+
+GKM is a separate web dashboard (`greenstar-kiosk-manager` repo) that monitors multiple kiosks in real time.
+
+### How it works
+
+`Reporter` runs as a background object in `MainWindow`. Every 60 seconds it:
+- Writes the latest `cpu_percent`, `temperature_c`, and `last_heartbeat` to Firestore
+- Adds a timestamped document to the `metrics` subcollection (history for sparklines)
+- Self-registers the kiosk on first run (creates `/kiosks/{kiosk_id}` if it doesn't exist)
+
+On every `transaction_added` / `transaction_event` signal it immediately syncs that transaction to the `transactions` subcollection.
+
+If `firebase-admin` is not installed or the env vars are missing, `Reporter` logs a warning and no-ops — the kiosk continues to function normally.
+
+### Setup
+
+1. Create a Firebase project at https://console.firebase.google.com
+2. Enable **Firestore** and **Google Authentication**
+3. Create a service account (Project settings → Service accounts → Generate new private key)
+4. Copy the JSON key to the Pi, e.g. `/home/pi/greenstar-key.json`
+5. Add to `.env`:
+   ```
+   FIREBASE_SERVICE_ACCOUNT_PATH=/home/pi/greenstar-key.json
+   GKM_KIOSK_ID=kiosk-001
+   GKM_KIOSK_NAME=Kiosk #1 – Main Floor
+   GKM_KIOSK_LOCATION=Seattle, WA
+   ```
+6. Install the dependency: `pip3 install firebase-admin`
+
+### Status in Current Status table
+
+| Component | Status |
+|---|---|
+| GKM reporter (`core/reporter.py`) | ✅ Implemented — awaiting Firebase credentials |
+
+---
 
 ## Autostart on Boot
 

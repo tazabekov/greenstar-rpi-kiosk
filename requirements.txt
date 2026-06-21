@@ -1,0 +1,10 @@
+# Core runtime
+PyQt5
+psutil
+
+# Testing
+pytest
+pytest-qt
+
+# GKM reporting (optional — kiosk runs without this if not configured)
+firebase-admin
