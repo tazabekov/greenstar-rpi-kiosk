@@ -67,7 +67,8 @@ greenstar-rpi-kiosk/
 │       ├── system_mini.py      # Compact CPU+temp bar indicators for dashboard sidebar
 │       ├── transaction_list.py # Painted transaction log — tap any row to see event log
 │       ├── payment_modal.py    # Touch-friendly payment dialog (keypad + FIAT/₿)
-│       └── transaction_detail_modal.py  # Timestamped event log per transaction
+│       ├── transaction_detail_modal.py  # Timestamped event log per transaction
+│       └── settings_modal.py   # Gear-button modal: Name, Location, Kiosk ID (with Advanced section)
 └── tests/
     ├── conftest.py             # Shared fixtures (qapp, DISPLAY env)
     ├── test_models.py          # Transaction + TransactionEvent (15 tests)
@@ -86,6 +87,7 @@ All components communicate via `bus` (singleton `AppBus`):
 | `transaction_event` | `tx_id, TransactionEvent` | SquareMockClient / SquareClient | TransactionList, TransactionDetailModal |
 | `payment_requested` | `tx_id, amount, type` | PaymentModal | SquareMockClient / SquareClient |
 | `payment_result` | `tx_id, success, message` | SquareMockClient / SquareClient | PaymentModal, TransactionList, TransactionDetailModal |
+| `settings_changed` | `name, location, kiosk_id` | SettingsModal | Reporter (`on_settings_changed`) |
 
 ### Transaction Event Log
 
@@ -193,16 +195,9 @@ During development, `SquareMockClient` in `main.py` simulates the full Square Te
 
 3. Install deps: `pip3 install requests python-dotenv`
 
-4. In `main.py` line 13, change:
-   ```python
-   from core.square import SquareMockClient   # swap for SquareClient when live
-   ```
-   to:
-   ```python
-   from core.square import SquareClient as SquareMockClient
-   ```
+4. `main.py` calls `make_square_client()` which automatically returns `SquareClient` when `SQUARE_ACCESS_TOKEN` is present, or `SquareMockClient` otherwise. No code change needed — just set the env var.
 
-5. Connect `bus.payment_requested` → `SquareClient.request_payment()` (already wired in `main.py`)
+5. `bus.payment_requested` → `SquareClient.request_payment()` is already wired in `main.py`.
 
 ### Bitcoin / Square Terminal
 
