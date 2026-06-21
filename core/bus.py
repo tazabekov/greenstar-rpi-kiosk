@@ -2,9 +2,10 @@ from PyQt5.QtCore import QObject, pyqtSignal
 
 
 class AppBus(QObject):
-    transaction_added = pyqtSignal(object)      # Transaction
-    payment_requested = pyqtSignal(float, str)  # amount, type ("fiat"|"bitcoin")
-    payment_result    = pyqtSignal(bool, str)   # success, message
+    transaction_added   = pyqtSignal(object)           # Transaction
+    transaction_event   = pyqtSignal(str, object)      # tx_id, TransactionEvent
+    payment_requested   = pyqtSignal(str, float, str)  # tx_id, amount, payment_type
+    payment_result      = pyqtSignal(str, bool, str)   # tx_id, success, message
 
 
 bus = AppBus()

@@ -1,10 +1,13 @@
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton
+from PyQt5.QtCore import pyqtSignal
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton, QLabel
 
 from ui.theme import ACCENT_GREEN, TEMP_LINE, INTERVALS, BTN_ACTIVE, BTN_INACTIVE
 from ui.widgets.graph import GraphWidget
 
 
 class SystemScreen(QWidget):
+    interval_changed = pyqtSignal(int)   # ms — consumed by MainWindow
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self._active_interval = "1 s"
@@ -21,6 +24,14 @@ class SystemScreen(QWidget):
         )
         root.addWidget(self.cpu_graph, stretch=1)
         root.addWidget(self.temp_graph, stretch=1)
+
+        # "Showing last X" label above button bar
+        self._window_lbl = QLabel("Showing last  1 s")
+        self._window_lbl.setStyleSheet(
+            "color: #555555; font-size: 9pt; background: transparent;"
+            " padding-left: 14px; padding-bottom: 2px;"
+        )
+        root.addWidget(self._window_lbl)
 
         # Interval button bar
         bar = QWidget()
@@ -52,11 +63,11 @@ class SystemScreen(QWidget):
             return
         self._active_interval = label
         self._apply_styles(label)
+        self._window_lbl.setText(f"Showing last  {label}")
         ms = INTERVALS[label]
         self.cpu_graph.interval_ms = ms
         self.temp_graph.interval_ms = ms
-        # sampler interval is changed via a signal emitted up to MainWindow
-        self.window().set_sample_interval(ms)
+        self.interval_changed.emit(ms)
 
     def _apply_styles(self, active):
         for label, btn in self._interval_buttons.items():

@@ -20,6 +20,7 @@ class _MiniGraph(QWidget):
         self.y_max = y_max
         self.line_color = line_color
         self.data = deque(maxlen=MINI_POINTS)
+        self.interval_ms = 1000
         self.setMinimumHeight(80)
 
     def push(self, value):
@@ -70,7 +71,7 @@ class _MiniGraph(QWidget):
 
         # Time-window label
         if self.data:
-            window_s = len(self.data) * 1  # always 1s interval for mini
+            window_s = len(self.data) * self.interval_ms / 1000
             if window_s < 120:
                 tl = f"↔ {int(window_s)}s"
             elif window_s < 7200:
@@ -103,3 +104,7 @@ class SystemMiniPanel(QWidget):
 
     def push_temp(self, value):
         self._temp.push(value)
+
+    def update_interval(self, ms):
+        self._cpu.interval_ms = ms
+        self._temp.interval_ms = ms

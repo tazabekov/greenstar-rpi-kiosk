@@ -1,25 +1,79 @@
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPainter
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QStackedWidget
 
 from core.bus import bus
-from core.models import Transaction
+from core.models import Transaction, TransactionEvent
 from core.sampler import DataSampler
+from core.square import SquareMockClient   # swap for SquareClient when live
 from ui.theme import BG_DARK, GLOBAL_STYLESHEET
 from ui.header import HeaderWidget
 from ui.screens.dashboard import DashboardScreen
 from ui.screens.system import SystemScreen
 
+
+def _make_sample_events(base_time, payment_type, amount, checkout_id):
+    """Pre-baked event log for sample transactions shown on startup."""
+    cents = int(amount * 100)
+    t = base_time
+    events = [
+        TransactionEvent(t,                          "MDB",    "in",
+                         f"VEND REQUEST  ${amount:.2f}",
+                         f"0x03 0x00 {cents:04x}"),
+        TransactionEvent(t + timedelta(seconds=0.3), "SQUARE", "out",
+                         f"POST /v2/terminals/checkouts  ${amount:.2f} USD"
+                         + (" (Bitcoin/Crypto)" if payment_type == "bitcoin" else ""),
+                         f'{{"amount_money": {{"amount": {cents}, "currency": "USD"}}, ...}}'),
+        TransactionEvent(t + timedelta(seconds=0.9), "SQUARE", "in",
+                         f"200 OK — checkout created id={checkout_id}, status: PENDING",
+                         f'{{"checkout": {{"id": "{checkout_id}", "status": "PENDING"}}}}'),
+        TransactionEvent(t + timedelta(seconds=2.5), "SQUARE", "in",
+                         f"GET .../{checkout_id} → IN_PROGRESS "
+                         + ("(QR code displayed)" if payment_type == "bitcoin"
+                            else "(payment screen shown)")),
+        TransactionEvent(t + timedelta(seconds=6.1), "SQUARE", "in",
+                         f"GET .../{checkout_id} → COMPLETED"),
+        TransactionEvent(t + timedelta(seconds=6.3), "MDB",    "out",
+                         "VEND APPROVED", "0x05 0x00"),
+    ]
+    return events
+
+
 SAMPLE_TRANSACTIONS = [
-    Transaction(datetime.now().replace(hour=13, minute=35, second=0), "Latte",      3.90, "fiat"),
-    Transaction(datetime.now().replace(hour=13, minute=28, second=0), "Espresso",   2.50, "bitcoin"),
-    Transaction(datetime.now().replace(hour=13, minute=15, second=0), "Cappuccino", 4.20, "fiat"),
-    Transaction(datetime.now().replace(hour=13, minute=2,  second=0), "Americano",  2.80, "fiat"),
-    Transaction(datetime.now().replace(hour=12, minute=55, second=0), "Latte",      3.90, "bitcoin"),
+    Transaction(
+        datetime.now().replace(hour=13, minute=35, second=0),
+        "Latte", 3.90, "fiat", status="completed",
+        events=_make_sample_events(
+            datetime.now().replace(hour=13, minute=35, second=0),
+            "fiat", 3.90, "chk_sample_001")),
+    Transaction(
+        datetime.now().replace(hour=13, minute=28, second=0),
+        "Espresso", 2.50, "bitcoin", status="completed",
+        events=_make_sample_events(
+            datetime.now().replace(hour=13, minute=28, second=0),
+            "bitcoin", 2.50, "chk_sample_002")),
+    Transaction(
+        datetime.now().replace(hour=13, minute=15, second=0),
+        "Cappuccino", 4.20, "fiat", status="completed",
+        events=_make_sample_events(
+            datetime.now().replace(hour=13, minute=15, second=0),
+            "fiat", 4.20, "chk_sample_003")),
+    Transaction(
+        datetime.now().replace(hour=13, minute=2, second=0),
+        "Americano", 2.80, "fiat", status="completed",
+        events=_make_sample_events(
+            datetime.now().replace(hour=13, minute=2, second=0),
+            "fiat", 2.80, "chk_sample_004")),
+    Transaction(
+        datetime.now().replace(hour=12, minute=55, second=0),
+        "Latte", 3.90, "bitcoin", status="completed",
+        events=_make_sample_events(
+            datetime.now().replace(hour=12, minute=55, second=0),
+            "bitcoin", 3.90, "chk_sample_005")),
 ]
 
 SCREEN_KEYS = ["dashboard", "system"]
@@ -37,20 +91,17 @@ class MainWindow(QWidget):
         root.setContentsMargins(0, 0, 0, 0)
         root.setSpacing(0)
 
-        # Header with tab navigation
         self._header = HeaderWidget()
         self._header.tab_changed.connect(self._switch_screen)
         root.addWidget(self._header)
 
-        # Stacked screens
-        self._stack = QStackedWidget()
+        self._stack     = QStackedWidget()
         self._dashboard = DashboardScreen()
         self._system    = SystemScreen()
-        self._stack.addWidget(self._dashboard)   # index 0 → dashboard
-        self._stack.addWidget(self._system)      # index 1 → system
+        self._stack.addWidget(self._dashboard)
+        self._stack.addWidget(self._system)
         root.addWidget(self._stack, stretch=1)
 
-        # Data sampler — wired to both system screen and mini panel
         self._sampler = DataSampler()
         self._system.wire_sampler(self._sampler)
         self._sampler.cpu_sample.connect(self._dashboard.mini.push_cpu)
@@ -58,12 +109,16 @@ class MainWindow(QWidget):
         self._sampler.set_interval(1000)
         self._sampler.start()
 
-        # Pre-populate transaction list with sample data
+        # Interval changes from System screen propagate to sampler + mini panel
+        self._system.interval_changed.connect(self._sampler.set_interval)
+        self._system.interval_changed.connect(self._dashboard.mini.update_interval)
+
+        # Square mock client — listens to bus.payment_requested
+        self._square = SquareMockClient(self)
+
+        # Pre-populate transaction list
         for tx in reversed(SAMPLE_TRANSACTIONS):
             bus.transaction_added.emit(tx)
-
-    def set_sample_interval(self, ms):
-        self._sampler.set_interval(ms)
 
     def _switch_screen(self, key):
         idx = SCREEN_KEYS.index(key) if key in SCREEN_KEYS else 0

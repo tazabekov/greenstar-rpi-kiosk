@@ -21,7 +21,7 @@ Raspberry Pi 5  (this device, 800×480 touchscreen)
 Square Payment Terminal
         │
         ├── FIAT  (card / contactless)
-        └── ₿ Bitcoin  (Square crypto payment option)
+        └── ₿ Bitcoin  (via Cash App Pay — see Square integration notes)
 ```
 
 ## Current Status
@@ -30,22 +30,28 @@ Square Payment Terminal
 |---|---|
 | CPU / temperature monitoring | ✅ Live |
 | Dashboard with transaction log | ✅ Working (sample data) |
-| Test payment modal (keypad + FIAT/Bitcoin) | ✅ Working (simulated) |
+| Clickable transactions with event log | ✅ Working |
+| Test payment modal (keypad + FIAT/Bitcoin) | ✅ Working (mock Square) |
+| Processing state with elapsed timer | ✅ Working |
 | X-axis time labels on graphs | ✅ Working |
+| Interval selector sync to mini panel | ✅ Fixed |
+| Test suite (77 tests, pytest-qt) | ✅ Passing |
 | MDB Pi Hat integration | ⏳ Hardware arriving ~2026-06-23 |
-| Square Web API integration | ⏳ Needs API key + terminal ID |
+| Square Web API integration | ⏳ Needs credentials (see below) |
 
 ## Software Architecture
 
 ```
 rpi-kiosk/
 ├── main.py                     # App entry point, MainWindow, screen routing
+├── CLAUDE.md                   # Claude session context (auto-updates README)
+├── pytest.ini                  # Test config (qt_api = pyqt5)
 ├── core/
 │   ├── bus.py                  # AppBus singleton — app-wide Qt signals
-│   ├── models.py               # Transaction dataclass
+│   ├── models.py               # Transaction + TransactionEvent dataclasses
 │   ├── sampler.py              # DataSampler — CPU % and temperature via psutil
-│   ├── mdb.py                  # MDB Pi Hat stub (to be implemented)
-│   └── square.py               # Square Web API stub (to be implemented)
+│   ├── square.py               # SquareMockClient (active) + SquareClient skeleton
+│   └── mdb.py                  # MDB Pi Hat stub (to be implemented)
 ├── ui/
 │   ├── theme.py                # Colour palette, button stylesheets, INTERVALS
 │   ├── header.py               # HeaderWidget: star icon + logo + tab nav + clock
@@ -55,20 +61,62 @@ rpi-kiosk/
 │   └── widgets/
 │       ├── graph.py            # Scrolling line graph with scan-line texture + x-axis
 │       ├── system_mini.py      # Compact CPU+temp bar indicators for dashboard sidebar
-│       ├── transaction_list.py # Painted transaction log (time, item, amount, type)
-│       └── payment_modal.py    # Touch-friendly payment dialog (keypad + FIAT/₿)
-└── README.md
+│       ├── transaction_list.py # Painted transaction log — tap any row to see event log
+│       ├── payment_modal.py    # Touch-friendly payment dialog (keypad + FIAT/₿)
+│       └── transaction_detail_modal.py  # Timestamped event log per transaction
+└── tests/
+    ├── conftest.py             # Shared fixtures (qapp, DISPLAY env)
+    ├── test_models.py          # Transaction + TransactionEvent (15 tests)
+    ├── test_bus.py             # AppBus signal correctness (15 tests)
+    ├── test_square_mock.py     # SquareMockClient event sequence (16 tests)
+    └── test_payment_modal.py   # Keypad, validation, type toggle (31 tests)
 ```
 
 ### Event Bus (`core/bus.py`)
 
 All components communicate via `bus` (singleton `AppBus`):
 
-| Signal | Emitted by | Consumed by |
-|---|---|---|
-| `transaction_added(Transaction)` | MDB reader (future), payment modal | `TransactionList` |
-| `payment_requested(amount, type)` | `PaymentModal` | Square client (future) |
-| `payment_result(success, message)` | Square client (future) | `PaymentModal` |
+| Signal | Signature | Emitted by | Consumed by |
+|---|---|---|---|
+| `transaction_added` | `Transaction` | PaymentModal, MDB reader | TransactionList |
+| `transaction_event` | `tx_id, TransactionEvent` | SquareMockClient / SquareClient | TransactionList, TransactionDetailModal |
+| `payment_requested` | `tx_id, amount, type` | PaymentModal | SquareMockClient / SquareClient |
+| `payment_result` | `tx_id, success, message` | SquareMockClient / SquareClient | PaymentModal, TransactionList, TransactionDetailModal |
+
+### Transaction Event Log
+
+Each `Transaction` carries an ordered list of `TransactionEvent` objects. A typical FIAT payment sequence:
+
+```
+[SYSTEM →]  Payment flow started
+[SQUARE →]  POST /v2/terminals/checkouts  $3.90 USD
+[SQUARE ←]  200 OK — checkout created, status: PENDING
+[SQUARE ←]  GET .../checkout_id → IN_PROGRESS (payment screen shown)
+[SQUARE ←]  GET .../checkout_id → COMPLETED (card tapped)
+[MDB    →]  VEND APPROVED  0x05 0x00
+```
+
+Tap any row in the transaction list to view the full event log with millisecond timestamps.
+
+## Screen Size Constraints
+
+**All screens and modals must fit within 800×480 px.**
+The labwc taskbar occupies ~32px at the bottom, leaving ~448px of usable height.
+
+Rules for new UI components:
+- Fixed-height widgets: sum all heights + margins + spacing and verify ≤ 440px
+- Modals/dialogs: design for ≤ 420px card height; use `card.setMaximumHeight(parent.height() - 40)` as a safety cap
+- Font sizes: 28pt hero numbers fit in 52px strips; 15pt body fits in 24px rows
+- Touch targets: **minimum 44px tall, minimum 80px wide** for primary actions
+- Close buttons on modals: use a full-width bottom bar (52px) — top-corner buttons are unreachable one-handed
+
+Quick height budget for a full-screen dialog:
+```
+480px total
+ -32px taskbar
+ -20px overlay padding (top + bottom)
+= 428px available for the card
+```
 
 ## Running
 
@@ -78,6 +126,14 @@ python3 main.py
 
 Press **Esc** to quit (development only).
 
+### Test suite
+
+```bash
+python3 -m pytest tests/ -v
+```
+
+77 tests, 0 failures. Covers models, AppBus signals, Square mock event sequence, and PaymentModal logic.
+
 ## Display Notes
 
 This Pi runs **labwc** (Wayland compositor) with **Xwayland** in rootless mode.
@@ -85,6 +141,14 @@ This Pi runs **labwc** (Wayland compositor) with **Xwayland** in rootless mode.
 - Launch with `DISPLAY=:0 python3 main.py` (X11 path through Xwayland → labwc)
 - Screenshots: use `WAYLAND_DISPLAY=wayland-0 grim /tmp/shot.png` — `scrot` captures a blank Xwayland framebuffer
 - Autostart: `~/.config/autostart/mygreenstar-kiosk.desktop` (XDG autostart, 3s delay)
+
+### Known Wayland warnings
+
+```
+qt.qpa.wayland: Wayland does not support QWindow::requestActivate()
+```
+
+This line appears in the log and is **harmless**. Xwayland windows cannot request focus directly via the X11 `_NET_ACTIVE_WINDOW` hint — focus is managed by the Wayland compositor (labwc). The kiosk window still receives input and renders correctly. The warning fires on startup and can be ignored.
 
 ## MDB Pi Hat Integration (`core/mdb.py`)
 
@@ -94,26 +158,53 @@ Steps to wire up:
 1. Connect MDB Pi Hat USB → RPi5
 2. Confirm device node: `ls /dev/ttyUSB* /dev/ttyACM*`
 3. Implement `MdbReader(QObject)` in `core/mdb.py` using `pyserial`
-4. On each vend event, create a `Transaction` and call `bus.transaction_added.emit(tx)`
+4. On each vend event, create a `Transaction` (status="pending") and call `bus.transaction_added.emit(tx)`
+5. Emit `bus.payment_requested(tx.tx_id, amount, "fiat")` to trigger Square checkout
+6. On `bus.payment_result`, emit MDB VEND APPROVED or VEND DENIED to the machine
 
 Install pyserial when ready: `pip3 install pyserial`
 
 ## Square Integration (`core/square.py`)
 
-See `core/square.py` for the planned interface.
+### Active: SquareMockClient
 
-Steps to wire up:
+During development, `SquareMockClient` in `main.py` simulates the full Square Terminal API flow with realistic timing (fiat: ~6s, Bitcoin: ~8s). All event log entries are generated; no network calls are made.
+
+### Going live: SquareClient
+
 1. Create `.env` with:
    ```
-   SQUARE_API_KEY=sandbox-...
-   SQUARE_TERMINAL_ID=...
-   SQUARE_LOCATION_ID=...
+   SQUARE_ACCESS_TOKEN=sandbox-sq0idp-...
+   SQUARE_LOCATION_ID=L...
+   SQUARE_DEVICE_ID=device:...
    SQUARE_ENVIRONMENT=sandbox
    ```
-2. Install SDK: `pip3 install squareup python-dotenv`
-3. Implement `SquareClient` in `core/square.py`
-4. Connect `bus.payment_requested` → `SquareClient.request_payment()`
-5. On terminal response, emit `bus.payment_result(success, message)`
+
+2. Find your `SQUARE_DEVICE_ID`:
+   ```bash
+   curl https://connect.squareupsandbox.com/v2/devices \
+        -H "Authorization: Bearer YOUR_SANDBOX_TOKEN" \
+        -H "Square-Version: 2025-01-23"
+   ```
+
+3. Install deps: `pip3 install requests python-dotenv`
+
+4. In `main.py` line 13, change:
+   ```python
+   from core.square import SquareMockClient   # swap for SquareClient when live
+   ```
+   to:
+   ```python
+   from core.square import SquareClient as SquareMockClient
+   ```
+
+5. Connect `bus.payment_requested` → `SquareClient.request_payment()` (already wired in `main.py`)
+
+### Bitcoin / Square Terminal
+
+Square Terminal API does not natively support Bitcoin. Recommended path:
+- **Cash App Pay** — Square terminals can offer Cash App Pay as a payment method, which supports crypto (incl. BTC). Enable via `payment_options.crypto_enabled: true` in the checkout body (already in `SquareMockClient` and `SquareClient`).
+- Confirm with Square developer support whether your terminal hardware supports Cash App Pay before going live.
 
 ## Autostart on Boot
 
