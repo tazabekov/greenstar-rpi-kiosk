@@ -46,8 +46,19 @@ X-GNOME-Autostart-Delay=3
 DESKTOP
 echo "      Installed: ~/.config/autostart/mygreenstar-kiosk.desktop"
 
-# 4. Desktop shortcut (pcmanfm shows files in ~/Desktop as icons on the labwc desktop)
-echo "[4/4] Creating desktop shortcut..."
+# 4. Make desktop .desktop files execute on double-click without prompting
+echo "[4/5] Configuring PCManFM to execute .desktop files on double-click..."
+LIBFM_CONF=~/.config/libfm/libfm.conf
+if [ -f "$LIBFM_CONF" ]; then
+    sed -i 's/^quick_exec=0/quick_exec=1/' "$LIBFM_CONF"
+else
+    mkdir -p ~/.config/libfm
+    printf '[config]\nquick_exec=1\n' > "$LIBFM_CONF"
+fi
+echo "      Done."
+
+# 5. Desktop shortcut (pcmanfm shows files in ~/Desktop as icons on the labwc desktop)
+echo "[5/5] Creating desktop shortcut..."
 mkdir -p ~/Desktop
 cat > ~/Desktop/mygreenstar-kiosk.desktop <<DESKTOP
 [Desktop Entry]
@@ -60,7 +71,7 @@ Terminal=false
 StartupNotify=false
 DESKTOP
 chmod +x ~/Desktop/mygreenstar-kiosk.desktop
-echo "      Installed: ~/Desktop/mygreenstar-kiosk.desktop"
+echo "      Installed: ~/Desktop/mygreenstar-kiosk.desktop (double-click to launch)"
 
 echo ""
 echo "=== Setup complete ==="
