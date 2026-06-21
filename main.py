@@ -133,9 +133,13 @@ class MainWindow(QWidget):
         conn.readyRead.connect(self._activate)
 
     def _activate(self):
-        self.setWindowState(self.windowState() & ~Qt.WindowMinimized)
+        # hide() + show() triggers a Wayland re-map which the compositor
+        # honours by placing the window on top — raise_()/activateWindow()
+        # alone don't cross the Wayland compositor boundary on labwc.
+        self.hide()
+        self.setWindowState(Qt.WindowNoState)
+        self.show()
         self.raise_()
-        self.activateWindow()
 
     def _switch_screen(self, key):
         idx = SCREEN_KEYS.index(key) if key in SCREEN_KEYS else 0
