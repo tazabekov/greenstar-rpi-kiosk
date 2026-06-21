@@ -2,15 +2,16 @@
 GKM Reporter — pushes heartbeats, metrics, and transactions to Firestore.
 
 Requires firebase-admin and the following .env vars:
-  FIREBASE_SERVICE_ACCOUNT_PATH  path to the JSON service-account key
+  FIREBASE_SERVICE_ACCOUNT_JSON  Firebase service-account key as a single-line JSON string
   GKM_KIOSK_ID                   unique kiosk identifier (e.g. "kiosk-001")
-  GKM_KIOSK_NAME                 display name (e.g. "Kiosk #1 – Main Floor")
-  GKM_KIOSK_LOCATION             location label (e.g. "Seattle, WA")
+  GKM_KIOSK_NAME                 display name (e.g. "Santelli Starkey Ranch")
+  GKM_KIOSK_LOCATION             location label (e.g. "Odessa, FL")
 
 If firebase-admin is not installed or the env vars are missing, the reporter
 starts in a no-op mode so the kiosk continues to run unaffected.
 """
 
+import json
 import logging
 import os
 from datetime import datetime, timezone
@@ -56,14 +57,14 @@ class Reporter(QObject):
             log.warning("Reporter: firebase-admin not installed — GKM reporting disabled")
             return
 
-        sa_path = os.getenv("FIREBASE_SERVICE_ACCOUNT_PATH", "")
+        sa_json = os.getenv("FIREBASE_SERVICE_ACCOUNT_JSON", "")
         self._kiosk_id = os.getenv("GKM_KIOSK_ID", "")
-        if not sa_path or not self._kiosk_id:
-            log.warning("Reporter: FIREBASE_SERVICE_ACCOUNT_PATH / GKM_KIOSK_ID not set — disabled")
+        if not sa_json or not self._kiosk_id:
+            log.warning("Reporter: FIREBASE_SERVICE_ACCOUNT_JSON / GKM_KIOSK_ID not set — disabled")
             return
 
         try:
-            cred = credentials.Certificate(sa_path)
+            cred = credentials.Certificate(json.loads(sa_json))
             if not firebase_admin._apps:
                 firebase_admin.initialize_app(cred)
             self._db = fb_firestore.client()

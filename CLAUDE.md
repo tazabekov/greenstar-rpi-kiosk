@@ -46,7 +46,7 @@ Escape key quits (dev only). The autostart `.desktop` file launches it on boot.
 - **AppBus** (`core/bus.py`) — singleton Qt signal bus. All components talk through it. Add signals there; never call methods on other widgets directly.
 - **Signals over `self.window()`** — do not reach up through the widget tree. Use a `pyqtSignal` emitted by the child and wired in `MainWindow`.
 - **Custom QPainter** for all data widgets — `paintEvent` + `update()` only; no mixing Qt layout children inside painted regions.
-- **SquareMockClient** is the active Square backend. Swap to `SquareClient` in `main.py` line 13 when credentials land.
+- **`make_square_client()`** auto-selects: returns `SquareClient` when `SQUARE_ACCESS_TOKEN` is in `.env`, otherwise `SquareMockClient`. No code change needed to go live.
 - **Touch targets** ≥ 44px tall. Modal card ≤ 420px on 800×480 display (32px taskbar, 20px padding).
 - Signal connections made in `__init__` or `_request()` must be disconnected in `closeEvent` / `done()` — see `PaymentModal` and `TransactionDetailModal` for the pattern.
 
@@ -63,16 +63,23 @@ ui/header.py         HeaderWidget — star, logo, tab nav, clock
 ui/screens/          dashboard.py · system.py
 ui/widgets/          graph.py · system_mini.py · transaction_list.py
                      payment_modal.py · transaction_detail_modal.py
+                     settings_modal.py
 tests/               pytest + pytest-qt — 77 tests, all passing
+.env.example         template — copy to .env and fill in values (gitignored)
 ```
 
-## What you need to provide (Square integration)
+## Environment variables (`.env`)
+
+All config lives in `.env` (gitignored). Copy `.env.example` → `.env` on each Pi.
 
 ```
-SQUARE_ACCESS_TOKEN   developer.squareup.com > Applications > Credentials
-SQUARE_LOCATION_ID    Square Dashboard > Locations
-SQUARE_DEVICE_ID      curl .../v2/devices with your access token
-SQUARE_ENVIRONMENT    "sandbox" | "production"
-```
+FIREBASE_SERVICE_ACCOUNT_JSON   full service-account JSON as a single-line string
+GKM_KIOSK_ID                    unique kiosk ID (Firestore document key)
+GKM_KIOSK_NAME                  display name in the GKM dashboard
+GKM_KIOSK_LOCATION              location in the GKM dashboard
 
-Put these in `/home/ali/code/greenstar-rpi-kiosk/.env`, then change `SquareMockClient` → `SquareClient` in `main.py`.
+SQUARE_ACCESS_TOKEN             set this to activate live Square payments (auto-detected)
+SQUARE_LOCATION_ID
+SQUARE_DEVICE_ID
+SQUARE_ENVIRONMENT              "sandbox" | "production"
+```

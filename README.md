@@ -224,23 +224,25 @@ If `firebase-admin` is not installed or the env vars are missing, `Reporter` log
 
 ### Current Pi config (kiosk-001)
 
-Key at `/home/ali/greenstar-key.json` (service account: `greenstar-kiosk-mgr` Firebase project).  
 `.env` in the repo root (gitignored):
 
 ```
-FIREBASE_SERVICE_ACCOUNT_PATH=/home/ali/greenstar-key.json
-GKM_KIOSK_ID=kiosk-001
-GKM_KIOSK_NAME=Kiosk #1
-GKM_KIOSK_LOCATION=Seattle, WA
+FIREBASE_SERVICE_ACCOUNT_JSON='{ ...full JSON key as single line... }'
+GKM_KIOSK_ID='kiosk-001'
+GKM_KIOSK_NAME='Santelli Starkey Ranch'
+GKM_KIOSK_LOCATION='Odessa, FL'
 ```
+
+See `.env.example` for the full field list including Square credentials.
 
 ### Adding a new kiosk
 
-1. Generate a new service account key (Firebase Console → Project Settings → Service Accounts → Generate new private key)
-2. Copy the JSON key to the new Pi
-3. Set the four `GKM_*` env vars in `.env` with a unique `GKM_KIOSK_ID`
-4. Install deps: `pip3 install firebase-admin python-dotenv --break-system-packages`
-5. The kiosk self-registers in Firestore on first heartbeat and appears on the dashboard within 60 s
+1. `git clone` the repo onto the new Pi
+2. `cp .env.example .env`
+3. In Firebase Console → Project Settings → Service Accounts → Generate new private key. Paste the entire JSON as a single line into `FIREBASE_SERVICE_ACCOUNT_JSON` in `.env`.
+4. Set a unique `GKM_KIOSK_ID` (e.g. `kiosk-002`) and fill in `GKM_KIOSK_NAME` / `GKM_KIOSK_LOCATION`.
+5. `pip3 install firebase-admin python-dotenv --break-system-packages`
+6. `DISPLAY=:0 python3 main.py` — the kiosk self-registers in Firestore and appears on the dashboard within 60 s.
 
 ---
 
