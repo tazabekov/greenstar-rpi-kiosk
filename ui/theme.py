@@ -10,13 +10,13 @@ TEXT_WHITE   = QColor("#e8e8e8")
 TEXT_MID     = QColor("#909090")
 TEXT_DIM     = QColor("#555555")
 
-# Update intervals for system graphs
-INTERVALS = {
-    "1 s":  1_000,
-    "10 s": 10_000,
-    "1 m":  60_000,
-    "1 h":  3_600_000,
-}
+# Time-window presets (label, sample-count at 2 s base rate)
+WINDOWS = [
+    ("1 min",  30),
+    ("5 min",  150),
+    ("1 hr",   1_800),
+    ("24 hr",  43_200),
+]
 
 # Button stylesheets (applied directly via setStyleSheet — avoids Qt cascade bugs)
 BTN_ACTIVE = (

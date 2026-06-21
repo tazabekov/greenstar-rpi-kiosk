@@ -114,12 +114,7 @@ class MainWindow(QWidget):
         self._system.wire_sampler(self._sampler)
         self._sampler.cpu_sample.connect(self._dashboard.mini.push_cpu)
         self._sampler.temp_sample.connect(self._dashboard.mini.push_temp)
-        self._sampler.set_interval(1000)
         self._sampler.start()
-
-        # Interval changes from System screen propagate to sampler + mini panel
-        self._system.interval_changed.connect(self._sampler.set_interval)
-        self._system.interval_changed.connect(self._dashboard.mini.update_interval)
 
         # Square mock client — listens to bus.payment_requested
         self._square = SquareMockClient(self)

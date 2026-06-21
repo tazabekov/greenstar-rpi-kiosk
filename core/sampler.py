@@ -10,6 +10,7 @@ class DataSampler(QObject):
         super().__init__()
         psutil.cpu_percent(interval=None)  # warm up
         self.timer = QTimer()
+        self.timer.setInterval(2000)       # fixed 2 s base rate
         self.timer.timeout.connect(self._sample)
 
     def set_interval(self, ms):
