@@ -1,4 +1,3 @@
-import uuid
 from datetime import datetime
 
 from PyQt5.QtCore import Qt, QTimer
@@ -111,8 +110,8 @@ class PaymentModal(QDialog):
         layout.setSpacing(8)
 
         title = QLabel(
-            f'New Payment'
-            f'<span style="color:#555555; font-size:11pt; font-weight:normal;">'
+            'New Payment'
+            '<span style="color:#555555; font-size:11pt; font-weight:normal;">'
             f'  (max ${MAX_PAYMENT_AMOUNT:.0f})</span>'
         )
         title.setTextFormat(Qt.RichText)

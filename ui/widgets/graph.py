@@ -71,7 +71,9 @@ def _downsample(seq, max_pts):
     if n <= max_pts:
         return seq
     step = n / max_pts
-    return [seq[int(i * step)] for i in range(max_pts)]
+    result = [seq[int(i * step)] for i in range(max_pts)]
+    result[-1] = seq[-1]  # always include the newest sample
+    return result
 
 
 def _fmt_dur(seconds):
@@ -144,6 +146,7 @@ class GraphWidget(QWidget):
             lo, hi, ticks = _nice_axis(min(visible), max(visible), self.min_span)
             if self.anchor_zero:
                 lo = 0
+                ticks = [t for t in ticks if t >= 0]
         else:
             lo, hi, ticks = (0, 100, [0, 25, 50, 75, 100]) if self.anchor_zero \
                             else (30, 90, [30, 50, 70, 90])

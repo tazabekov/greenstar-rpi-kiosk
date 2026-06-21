@@ -4,7 +4,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPainter, QPen, QColor, QFont
 from PyQt5.QtWidgets import QWidget, QVBoxLayout
 
-from ui.theme import PANEL_BG, BORDER_DIM, ACCENT_GREEN, TEMP_LINE, TEXT_MID, TEXT_DIM
+from ui.theme import PANEL_BG, BORDER_DIM, ACCENT_GREEN, TEXT_MID, TEXT_DIM
 from ui.widgets.graph import SAMPLE_S
 
 MINI_POINTS = 60
@@ -94,7 +94,7 @@ class SystemMiniPanel(QWidget):
         layout.setSpacing(6)
 
         self._cpu = _MiniGraph("CPU Usage",    "%",  0,  100, ACCENT_GREEN)
-        self._temp = _MiniGraph("Temperature", "°C", 30,  85, TEMP_LINE)
+        self._temp = _MiniGraph("Temperature", "°C", 30,  85, ACCENT_GREEN)
         layout.addWidget(self._cpu)
         layout.addWidget(self._temp)
         layout.addStretch()

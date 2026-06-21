@@ -94,6 +94,14 @@ class SquareMockClient(QObject):
 
         self._ev(tx_id, 0, "SYSTEM", "out", "Payment flow started")
 
+        if payment_type not in ("fiat", "bitcoin"):
+            self._ev(tx_id, 0, "SYSTEM", "in",
+                     f"ERROR: unknown payment_type '{payment_type}'")
+            QTimer.singleShot(100, lambda: bus.payment_result.emit(
+                tx_id, False, f"Unknown payment type: {payment_type}"
+            ))
+            return
+
         if payment_type == "fiat":
             body = (
                 f'{{"idempotency_key": "{tx_id}", "checkout": {{'
@@ -147,7 +155,7 @@ class _PaymentWorker(QThread):
     event_ready  = pyqtSignal(str, object)   # tx_id, TransactionEvent
     done         = pyqtSignal(str, bool, str) # tx_id, success, message
 
-    def __init__(self, tx_id, amount, payment_type, base_url, headers, device_id):
+    def __init__(self, tx_id, amount, payment_type, base_url, headers, device_id, location_id):
         super().__init__()
         self._tx_id        = tx_id
         self._amount       = amount
@@ -155,6 +163,7 @@ class _PaymentWorker(QThread):
         self._base_url     = base_url
         self._headers      = headers
         self._device_id    = device_id
+        self._location_id  = location_id
 
     def _ev(self, source, direction, message, raw=""):
         self.event_ready.emit(
@@ -178,6 +187,7 @@ class _PaymentWorker(QThread):
         checkout_block = {
             "amount_money": {"amount": cents, "currency": "USD"},
             "device_options": {"device_id": self._device_id},
+            "location_id": self._location_id,
             "reference_id": tx_id,
             "note": f"MyGreenStar {tx_id}",
         }
@@ -294,10 +304,10 @@ class SquareClient(QObject):
     def _handle(self, tx_id, amount, payment_type):
         w = _PaymentWorker(
             tx_id, amount, payment_type,
-            self._base_url, self._headers(), self._device,
+            self._base_url, self._headers(), self._device, self._location,
         )
         w.event_ready.connect(bus.transaction_event)
         w.done.connect(bus.payment_result)
-        w.finished.connect(lambda: self._workers.remove(w))
+        w.finished.connect(lambda worker=w: self._workers.remove(worker))
         self._workers.append(w)
         w.start()

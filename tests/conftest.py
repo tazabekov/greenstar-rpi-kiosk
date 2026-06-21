@@ -1,5 +1,5 @@
 """
-Shared fixtures for the rpi-kiosk test suite.
+Shared fixtures for the greenstar-rpi-kiosk test suite.
 """
 import os
 import sys

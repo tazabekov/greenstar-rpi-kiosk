@@ -1,7 +1,6 @@
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime
-from typing import List
 
 
 @dataclass
@@ -21,4 +20,4 @@ class Transaction:
     payment_type: str        # "fiat" | "bitcoin"
     status: str = "pending"  # "pending" | "completed" | "failed"
     tx_id: str = field(default_factory=lambda: str(uuid.uuid4())[:8])
-    events: List[TransactionEvent] = field(default_factory=list)
+    events: list[TransactionEvent] = field(default_factory=list)

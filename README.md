@@ -32,9 +32,9 @@ Square Payment Terminal
 | Dashboard with transaction log | ✅ Working (sample data) |
 | Clickable transactions with event log | ✅ Working |
 | Test payment modal (keypad + FIAT/Bitcoin) | ✅ Working (mock Square) |
-| Processing state with elapsed timer | ✅ Working |
+| Processing screen with live event log + elapsed timer | ✅ Working |
 | X-axis time labels on graphs | ✅ Working |
-| Interval selector sync to mini panel | ✅ Fixed |
+| Time-window selector (1 min/5 min/1 hr/24 hr) | ✅ Working |
 | Test suite (77 tests, pytest-qt) | ✅ Passing |
 | MDB Pi Hat integration | ⏳ Hardware arriving ~2026-06-23 |
 | Square Web API integration | ⏳ Needs credentials (see below) |
@@ -42,7 +42,7 @@ Square Payment Terminal
 ## Software Architecture
 
 ```
-rpi-kiosk/
+greenstar-rpi-kiosk/
 ├── main.py                     # App entry point, MainWindow, screen routing
 ├── CLAUDE.md                   # Claude session context (auto-updates README)
 ├── pytest.ini                  # Test config (qt_api = pyqt5)
@@ -53,11 +53,11 @@ rpi-kiosk/
 │   ├── square.py               # SquareMockClient (active) + SquareClient skeleton
 │   └── mdb.py                  # MDB Pi Hat stub (to be implemented)
 ├── ui/
-│   ├── theme.py                # Colour palette, button stylesheets, INTERVALS
+│   ├── theme.py                # Colour palette, button stylesheets, WINDOWS
 │   ├── header.py               # HeaderWidget: star icon + logo + tab nav + clock
 │   ├── screens/
 │   │   ├── dashboard.py        # Transaction log + mini system stats + payment button
-│   │   └── system.py           # Full CPU/temp graphs + interval selector
+│   │   └── system.py           # Full CPU/temp graphs + time-window selector
 │   └── widgets/
 │       ├── graph.py            # Scrolling line graph with scan-line texture + x-axis
 │       ├── system_mini.py      # Compact CPU+temp bar indicators for dashboard sidebar
@@ -212,7 +212,7 @@ Square Terminal API does not natively support Bitcoin. Recommended path:
 # ~/.config/autostart/mygreenstar-kiosk.desktop
 [Desktop Entry]
 Name=MyGreenStar Kiosk
-Exec=/usr/bin/python3 /home/ali/code/rpi-kiosk/main.py
+Exec=/usr/bin/python3 /home/ali/code/greenstar-rpi-kiosk/main.py
 Type=Application
 Terminal=false
 X-GNOME-Autostart-enabled=true

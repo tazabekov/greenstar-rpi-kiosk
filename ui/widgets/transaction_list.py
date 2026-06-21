@@ -91,6 +91,7 @@ class TransactionList(QWidget):
             painter.setFont(QFont("DejaVu Sans", 11))
             painter.setPen(QPen(TEXT_DIM))
             painter.drawText(0, 0, w, h, Qt.AlignCenter, "No transactions yet")
+            painter.end()
             return
 
         visible = min(len(self._transactions), h // ROW_H)

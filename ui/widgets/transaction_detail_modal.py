@@ -1,4 +1,4 @@
-from PyQt5.QtCore import Qt, QRect
+from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QColor, QPainter, QPen, QFont, QBrush
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QScrollArea,
@@ -262,12 +262,11 @@ class TransactionDetailModal(QDialog):
     def _on_event(self, tx_id, event):
         if tx_id != self._tx.tx_id:
             return
-        self._tx.events.append(event)
         self._log_widget.append_event(event)
         self._event_count_lbl.setText(f"{len(self._tx.events)} events")
-        # Auto-scroll to bottom
+        # Deferred scroll: layout hasn't expanded yet at signal-emit time
         sb = self._scroll.verticalScrollBar()
-        sb.setValue(sb.maximum())
+        QTimer.singleShot(10, lambda: sb.setValue(sb.maximum()))
 
     def _on_result(self, tx_id, success, message):
         if tx_id != self._tx.tx_id:

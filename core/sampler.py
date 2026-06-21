@@ -13,15 +13,11 @@ class DataSampler(QObject):
         self.timer.setInterval(2000)       # fixed 2 s base rate
         self.timer.timeout.connect(self._sample)
 
-    def set_interval(self, ms):
-        was_active = self.timer.isActive()
-        self.timer.stop()
-        self.timer.setInterval(ms)
-        if was_active:
-            self.timer.start()
-
     def start(self):
         self.timer.start()
+
+    def stop(self):
+        self.timer.stop()
 
     def _sample(self):
         cpu = psutil.cpu_percent(interval=None)
@@ -30,7 +26,8 @@ class DataSampler(QObject):
             temp = temps['cpu_thermal'][0].current
         except (KeyError, IndexError, TypeError):
             try:
-                temp = int(open('/sys/class/thermal/thermal_zone0/temp').read()) / 1000.0
+                with open('/sys/class/thermal/thermal_zone0/temp') as f:
+                    temp = int(f.read()) / 1000.0
             except OSError:
                 temp = 0.0
         self.cpu_sample.emit(cpu)

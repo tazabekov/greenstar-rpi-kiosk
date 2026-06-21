@@ -27,7 +27,7 @@ Python 3 / PyQt5. Custom QPainter rendering throughout — no QML, no web views.
 ## Running
 
 ```bash
-cd /home/ali/code/rpi-kiosk
+cd /home/ali/code/greenstar-rpi-kiosk
 DISPLAY=:0 python3 main.py      # run on the kiosk display
 python3 -m pytest tests/ -v     # run the test suite
 ```
@@ -58,7 +58,7 @@ core/models.py       Transaction + TransactionEvent dataclasses
 core/sampler.py      DataSampler — CPU% and temperature via psutil
 core/square.py       SquareMockClient (active) + SquareClient skeleton
 core/mdb.py          MDB Pi Hat stub — implement when hardware arrives (~2026-06-23)
-ui/theme.py          Colours, button stylesheets, INTERVALS
+ui/theme.py          Colours, button stylesheets, WINDOWS
 ui/header.py         HeaderWidget — star, logo, tab nav, clock
 ui/screens/          dashboard.py · system.py
 ui/widgets/          graph.py · system_mini.py · transaction_list.py
@@ -75,4 +75,4 @@ SQUARE_DEVICE_ID      curl .../v2/devices with your access token
 SQUARE_ENVIRONMENT    "sandbox" | "production"
 ```
 
-Put these in `/home/ali/code/rpi-kiosk/.env`, then change `SquareMockClient` → `SquareClient` in `main.py`.
+Put these in `/home/ali/code/greenstar-rpi-kiosk/.env`, then change `SquareMockClient` → `SquareClient` in `main.py`.

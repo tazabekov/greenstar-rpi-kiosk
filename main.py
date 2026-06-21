@@ -140,6 +140,10 @@ class MainWindow(QWidget):
         idx = SCREEN_KEYS.index(key) if key in SCREEN_KEYS else 0
         self._stack.setCurrentIndex(idx)
 
+    def closeEvent(self, event):
+        self._sampler.stop()
+        super().closeEvent(event)
+
     def paintEvent(self, event):
         painter = QPainter(self)
         painter.fillRect(self.rect(), BG_DARK)
