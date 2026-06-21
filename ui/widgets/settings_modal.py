@@ -5,7 +5,7 @@ from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QColor, QPainter
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout,
-    QLabel, QLineEdit, QPushButton, QWidget,
+    QLabel, QLineEdit, QPushButton, QScrollArea, QWidget,
 )
 
 from core.bus import bus
@@ -62,8 +62,15 @@ class SettingsModal(QDialog):
         card.setFixedWidth(420)
         card.setMaximumHeight((self.height() if self.height() > 0 else 480) - 40)
 
-        layout = QVBoxLayout(card)
-        layout.setContentsMargins(24, 20, 24, 20)
+        card_layout = QVBoxLayout(card)
+        card_layout.setContentsMargins(0, 0, 0, 0)
+        card_layout.setSpacing(0)
+
+        # ── Scrollable form area ──────────────────────────────────────
+        scroll_content = QWidget()
+        scroll_content.setStyleSheet("background: transparent; border: none;")
+        layout = QVBoxLayout(scroll_content)
+        layout.setContentsMargins(24, 20, 24, 12)
         layout.setSpacing(14)
 
         title = QLabel("Kiosk Settings")
@@ -123,11 +130,28 @@ class SettingsModal(QDialog):
 
         self._adv_widget.hide()
         layout.addWidget(self._adv_widget)
-
         layout.addStretch()
 
-        # Buttons
-        btn_row = QHBoxLayout()
+        scroll = QScrollArea()
+        scroll.setWidget(scroll_content)
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QScrollArea.NoFrame)
+        scroll.setStyleSheet(
+            "QScrollArea { background: transparent; border: none; }"
+            "QScrollBar:vertical { width: 6px; background: #0a0a0a; }"
+            "QScrollBar::handle:vertical { background: #2a2a2a; border-radius: 3px; }"
+            "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }"
+        )
+        card_layout.addWidget(scroll, stretch=1)
+
+        # ── Pinned button row ─────────────────────────────────────────
+        btn_bar = QWidget()
+        btn_bar.setStyleSheet(
+            "background: transparent;"
+            " border-top: 1px solid #1a2a1a;"
+        )
+        btn_row = QHBoxLayout(btn_bar)
+        btn_row.setContentsMargins(24, 10, 24, 14)
         btn_row.setSpacing(10)
 
         cancel = QPushButton("Cancel")
@@ -142,7 +166,7 @@ class SettingsModal(QDialog):
         save.clicked.connect(self._save)
         btn_row.addWidget(save, stretch=2)
 
-        layout.addLayout(btn_row)
+        card_layout.addWidget(btn_bar)
 
         outer.addStretch()
         h_row = QHBoxLayout()
