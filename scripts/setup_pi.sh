@@ -72,7 +72,7 @@ StartupNotify=false
 DESKTOP
 chmod +x ~/Desktop/mygreenstar-kiosk.desktop
 # Mark as trusted so PCManFM launches it directly without "Execute or Open?" prompt
-gio set ~/Desktop/mygreenstar-kiosk.desktop metadata::trusted true
+gio set ~/Desktop/mygreenstar-kiosk.desktop metadata::trusted yes
 echo "      Installed: ~/Desktop/mygreenstar-kiosk.desktop (double-click to launch)"
 
 echo ""
