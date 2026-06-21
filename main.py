@@ -14,7 +14,7 @@ from core.bus import bus
 from core.models import Transaction, TransactionEvent
 from core.reporter import Reporter
 from core.sampler import DataSampler
-from core.square import SquareMockClient   # swap for SquareClient when live
+from core.square import make_square_client
 from ui.theme import BG_DARK, GLOBAL_STYLESHEET
 from ui.header import HeaderWidget
 from ui.screens.dashboard import DashboardScreen
@@ -131,8 +131,8 @@ class MainWindow(QWidget):
         bus.settings_changed.connect(self._reporter.on_settings_changed)
         self._reporter.start()
 
-        # Square mock client — listens to bus.payment_requested
-        self._square = SquareMockClient(self)
+        # Auto-selects SquareClient when SQUARE_ACCESS_TOKEN is in .env, else mock
+        self._square = make_square_client(self)
 
         # Pre-populate transaction list
         for tx in reversed(SAMPLE_TRANSACTIONS):

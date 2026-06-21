@@ -273,15 +273,12 @@ class _PaymentWorker(QThread):
 
 class SquareClient(QObject):
     """
-    Production Square Terminal client.
-    Replace SquareMockClient with this in main.py once credentials are in .env.
-    Install deps: pip3 install requests python-dotenv
+    Production Square Terminal client. Auto-selected by make_square_client()
+    when SQUARE_ACCESS_TOKEN is present in .env.
     """
 
     def __init__(self, parent=None):
         super().__init__(parent)
-        from dotenv import load_dotenv
-        load_dotenv()
         self._token    = os.getenv("SQUARE_ACCESS_TOKEN", "")
         self._location = os.getenv("SQUARE_LOCATION_ID", "")
         self._device   = os.getenv("SQUARE_DEVICE_ID", "")
@@ -291,7 +288,7 @@ class SquareClient(QObject):
             if env == "production"
             else "https://connect.squareupsandbox.com"
         )
-        self._workers = []  # keep references alive
+        self._workers = []  # keep alive until thread finishes
         bus.payment_requested.connect(self._handle)
 
     def _headers(self):
@@ -311,3 +308,20 @@ class SquareClient(QObject):
         w.finished.connect(lambda worker=w: self._workers.remove(worker))
         self._workers.append(w)
         w.start()
+
+
+def make_square_client(parent=None):
+    """
+    Returns SquareClient when SQUARE_ACCESS_TOKEN is set in the environment,
+    otherwise SquareMockClient. No changes to main.py needed when going live —
+    just add the four SQUARE_* vars to .env.
+    """
+    if os.getenv("SQUARE_ACCESS_TOKEN"):
+        import logging
+        logging.getLogger(__name__).info(
+            "Square: using SquareClient (env=%s)", os.getenv("SQUARE_ENVIRONMENT", "sandbox")
+        )
+        return SquareClient(parent)
+    import logging
+    logging.getLogger(__name__).info("Square: SQUARE_ACCESS_TOKEN not set — using SquareMockClient")
+    return SquareMockClient(parent)

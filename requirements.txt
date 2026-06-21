@@ -9,3 +9,6 @@ pytest-qt
 # GKM reporting (optional — kiosk runs without this if not configured)
 firebase-admin
 python-dotenv
+
+# Square Terminal API (optional — falls back to mock if SQUARE_ACCESS_TOKEN not set)
+requests
