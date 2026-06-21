@@ -9,6 +9,7 @@ from PyQt5.QtWidgets import (
 )
 
 from core.bus import bus
+from core.config import MAX_PAYMENT_AMOUNT
 from core.models import Transaction
 
 KEYPAD = [
@@ -40,12 +41,14 @@ BTN_REQUEST = (
     " border: none; border-radius: 6px;"
     " font-size: 13pt; font-weight: bold; }"
     " QPushButton:hover { background-color: #55ff33; }"
+    " QPushButton:disabled { background-color: #1a2a0d; color: #2a5010; }"
 )
 BTN_CANCEL = (
     "QPushButton { background-color: #1a1a1a; color: #888888;"
     " border: 1px solid #333333; border-radius: 6px;"
-    " font-size: 12pt; }"
+    " font-size: 12pt; padding: 0 16px; }"
     " QPushButton:hover { border-color: #666666; color: #aaaaaa; }"
+    " QPushButton:pressed { background-color: #2a2a2a; }"
 )
 
 
@@ -108,10 +111,13 @@ class PaymentModal(QDialog):
         layout.setContentsMargins(20, 14, 20, 14)
         layout.setSpacing(8)
 
-        title = QLabel("New Payment")
-        title.setStyleSheet(
-            "color: #39ff14; font-size: 15pt; font-weight: bold; border: none;"
+        title = QLabel(
+            f'New Payment'
+            f'<span style="color:#555555; font-size:11pt; font-weight:normal;">'
+            f'  (max ${MAX_PAYMENT_AMOUNT:.0f})</span>'
         )
+        title.setTextFormat(Qt.RichText)
+        title.setStyleSheet("color: #39ff14; font-size: 15pt; font-weight: bold; border: none;")
         title.setAlignment(Qt.AlignCenter)
         layout.addWidget(title)
 
@@ -157,11 +163,12 @@ class PaymentModal(QDialog):
         cancel.clicked.connect(self.reject)
         action_row.addWidget(cancel)
 
-        request = QPushButton("Request Payment")
-        request.setFixedHeight(44)
-        request.setStyleSheet(BTN_REQUEST)
-        request.clicked.connect(self._request)
-        action_row.addWidget(request, stretch=2)
+        self._request_btn = QPushButton("Request Payment")
+        self._request_btn.setFixedHeight(44)
+        self._request_btn.setStyleSheet(BTN_REQUEST)
+        self._request_btn.setEnabled(False)   # disabled until a valid amount is entered
+        self._request_btn.clicked.connect(self._request)
+        action_row.addWidget(self._request_btn, stretch=2)
 
         layout.addLayout(action_row)
         return page
@@ -240,13 +247,30 @@ class PaymentModal(QDialog):
     def _refresh_amount(self):
         if not self._digits or self._digits == ".":
             self._amount_label.setText("0.00")
+            self._update_request_btn(0.0)
             return
         try:
             val = float(self._digits)
             dec = self._digits.split(".")[1] if "." in self._digits else ""
             self._amount_label.setText(f"{val:.{len(dec)}f}" if dec else self._digits)
+            self._update_request_btn(val)
         except ValueError:
             self._amount_label.setText("0.00")
+            self._update_request_btn(0.0)
+
+    def _update_request_btn(self, amount):
+        ok = 0 < amount <= MAX_PAYMENT_AMOUNT
+        self._request_btn.setEnabled(ok)
+        # Turn the amount label red when the limit is exceeded
+        base = (
+            "color: #e8e8e8; font-size: 30pt; font-weight: bold;"
+            " background-color: #111111; border: 1px solid #333333;"
+            " border-radius: 6px; padding: 4px 12px;"
+        )
+        if amount > MAX_PAYMENT_AMOUNT:
+            self._amount_label.setStyleSheet(base.replace("color: #e8e8e8", "color: #ff4444"))
+        else:
+            self._amount_label.setStyleSheet(base)
 
     def _set_type(self, key):
         self._payment_type = key
@@ -264,15 +288,9 @@ class PaymentModal(QDialog):
         except ValueError:
             amount = 0.0
 
-        if amount <= 0:
-            orig = self._amount_label.styleSheet()
-            self._amount_label.setStyleSheet(orig.replace("#e8e8e8", "#ff4444"))
-            # Parent the timer to the label so Qt cancels it if the widget is
-            # destroyed before the 600ms fires (e.g. user taps Cancel quickly).
-            t = QTimer(self._amount_label)
-            t.setSingleShot(True)
-            t.timeout.connect(lambda: self._amount_label.setStyleSheet(orig))
-            t.start(600)
+        # Button is disabled below 0 and above MAX_PAYMENT_AMOUNT, so this
+        # guard only fires if _request is somehow called programmatically.
+        if amount <= 0 or amount > MAX_PAYMENT_AMOUNT:
             return
 
         tx = Transaction(
