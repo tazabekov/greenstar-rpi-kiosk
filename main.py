@@ -7,7 +7,7 @@ from PyQt5.QtCore import Qt, QTimer, QPointF, pyqtSignal, QObject
 from PyQt5.QtGui import (
     QPainter, QPen, QColor, QFont, QLinearGradient, QPolygonF, QPainterPath
 )
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QButtonGroup
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
 
 BG_DARK      = QColor("#0d0d0d")
 PANEL_BG     = QColor("#111111")
@@ -18,6 +18,18 @@ TEXT_WHITE   = QColor("#e8e8e8")
 TEXT_DIM     = QColor("#555555")
 
 MAX_POINTS = 600
+
+BTN_ACTIVE = (
+    "QPushButton { background-color: #39ff14; color: #0d0d0d;"
+    " border: 2px solid #39ff14; border-radius: 8px;"
+    " font-size: 15pt; font-weight: bold; padding: 6px 0px; }"
+)
+BTN_INACTIVE = (
+    "QPushButton { background-color: #111111; color: #39ff14;"
+    " border: 2px solid #1a5c08; border-radius: 8px;"
+    " font-size: 15pt; font-weight: bold; padding: 6px 0px; }"
+    " QPushButton:hover { border-color: #39ff14; background-color: #0d1f08; }"
+)
 
 INTERVALS = {
     "1 s":  1_000,
@@ -44,11 +56,6 @@ QPushButton#interval {
 QPushButton#interval:hover {
     border-color: #39ff14;
     background-color: #0d1f08;
-}
-QPushButton#interval:checked {
-    background-color: #39ff14;
-    color: #0d0d0d;
-    border-color: #39ff14;
 }
 """
 
@@ -273,20 +280,15 @@ class MainWindow(QWidget):
         bl.setSpacing(12)
 
         self._interval_buttons = {}
-        self._btn_group = QButtonGroup(self)
-        self._btn_group.setExclusive(True)
         for label in INTERVALS:
             btn = QPushButton(label)
-            btn.setObjectName("interval")
-            btn.setCheckable(True)
             btn.setFixedHeight(50)
             btn.setMinimumWidth(90)
             btn.clicked.connect(lambda checked, l=label: self._select_interval(l))
             bl.addWidget(btn)
-            self._btn_group.addButton(btn)
             self._interval_buttons[label] = btn
 
-        self._interval_buttons["1 s"].setChecked(True)
+        self._apply_button_styles("1 s")
         root.addWidget(bar)
 
     def _build_sampler(self):
@@ -298,11 +300,15 @@ class MainWindow(QWidget):
         from datetime import datetime
         self.clock_label.setText(datetime.now().strftime("%H:%M:%S"))
 
+    def _apply_button_styles(self, active_label):
+        for label, btn in self._interval_buttons.items():
+            btn.setStyleSheet(BTN_ACTIVE if label == active_label else BTN_INACTIVE)
+
     def _select_interval(self, label):
         if label == self._active_interval:
             return
         self._active_interval = label
-        self._interval_buttons[label].setChecked(True)
+        self._apply_button_styles(label)
         self.sampler.set_interval(INTERVALS[label])
 
     def paintEvent(self, event):
