@@ -2,6 +2,9 @@ import os
 import sys
 from datetime import datetime, timedelta
 
+from dotenv import load_dotenv
+load_dotenv()
+
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPainter
 from PyQt5.QtNetwork import QLocalServer, QLocalSocket
