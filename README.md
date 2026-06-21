@@ -237,12 +237,17 @@ See `.env.example` for the full field list including Square credentials.
 
 ### Adding a new kiosk
 
-1. `git clone` the repo onto the new Pi
-2. `cp .env.example .env`
-3. In Firebase Console → Project Settings → Service Accounts → Generate new private key. Paste the entire JSON as a single line into `FIREBASE_SERVICE_ACCOUNT_JSON` in `.env`.
-4. Set a unique `GKM_KIOSK_ID` (e.g. `kiosk-002`) and fill in `GKM_KIOSK_NAME` / `GKM_KIOSK_LOCATION`.
-5. `pip3 install firebase-admin python-dotenv --break-system-packages`
-6. `DISPLAY=:0 python3 main.py` — the kiosk self-registers in Firestore and appears on the dashboard within 60 s.
+```bash
+git clone https://github.com/tazabekov/greenstar-rpi-kiosk
+cd greenstar-rpi-kiosk
+bash scripts/setup_pi.sh
+```
+
+`setup_pi.sh` installs Python deps, copies `.env.example` → `.env`, creates the autostart entry (`~/.config/autostart/`), and adds a desktop shortcut (`~/Desktop/`).
+
+After running it:
+1. Edit `.env` — paste the Firebase service-account JSON into `FIREBASE_SERVICE_ACCOUNT_JSON`, set a unique `GKM_KIOSK_ID`, and fill in name/location.
+2. Reboot — the kiosk starts automatically on login.
 
 ---
 
