@@ -103,6 +103,17 @@ class Reporter(QObject):
         except Exception:
             log.exception("Reporter: failed to sync transaction %s", tx.tx_id)
 
+    @pyqtSlot(str, str, str)
+    def on_settings_changed(self, name: str, location: str, kiosk_id: str):
+        if not self._db:
+            return
+        if kiosk_id and kiosk_id != self._kiosk_id:
+            self._kiosk_id = kiosk_id
+            self._kiosk_ref = self._db.collection("kiosks").document(kiosk_id)
+            log.info("Reporter: kiosk ID updated to %s", kiosk_id)
+        # Push updated name/location immediately
+        self._heartbeat()
+
     @pyqtSlot(str, object)
     def on_transaction_event(self, tx_id: str, event):
         if not self._kiosk_ref:

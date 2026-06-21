@@ -40,7 +40,8 @@ class StarIcon(QWidget):
 
 
 class HeaderWidget(QWidget):
-    tab_changed = pyqtSignal(str)   # "dashboard" | "system"
+    tab_changed        = pyqtSignal(str)   # "dashboard" | "system"
+    settings_requested = pyqtSignal()
 
     TABS = [("dashboard", "Dashboard"), ("system", "System")]
 
@@ -71,7 +72,20 @@ class HeaderWidget(QWidget):
             layout.addWidget(btn)
             self._tab_buttons[key] = btn
 
-        layout.addSpacing(12)
+        layout.addSpacing(8)
+
+        gear = QPushButton("⚙")
+        gear.setFixedSize(44, 44)
+        gear.setStyleSheet(
+            "QPushButton { background-color: transparent; color: #555555;"
+            " border: none; font-size: 18pt; }"
+            " QPushButton:hover { color: #39ff14; }"
+            " QPushButton:pressed { color: #e8e8e8; }"
+        )
+        gear.clicked.connect(self.settings_requested)
+        layout.addWidget(gear)
+
+        layout.addSpacing(4)
 
         self._clock = QLabel()
         self._clock.setAlignment(Qt.AlignRight | Qt.AlignVCenter)

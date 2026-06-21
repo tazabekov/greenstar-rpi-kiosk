@@ -19,6 +19,7 @@ from ui.theme import BG_DARK, GLOBAL_STYLESHEET
 from ui.header import HeaderWidget
 from ui.screens.dashboard import DashboardScreen
 from ui.screens.system import SystemScreen
+from ui.widgets.settings_modal import SettingsModal
 
 
 def _make_sample_events(base_time, payment_type, amount, checkout_id):
@@ -105,6 +106,7 @@ class MainWindow(QWidget):
 
         self._header = HeaderWidget()
         self._header.tab_changed.connect(self._switch_screen)
+        self._header.settings_requested.connect(self._open_settings)
         root.addWidget(self._header)
 
         self._stack     = QStackedWidget()
@@ -126,6 +128,7 @@ class MainWindow(QWidget):
         self._sampler.temp_sample.connect(self._reporter.on_temp_sample)
         bus.transaction_added.connect(self._reporter.on_transaction_added)
         bus.transaction_event.connect(self._reporter.on_transaction_event)
+        bus.settings_changed.connect(self._reporter.on_settings_changed)
         self._reporter.start()
 
         # Square mock client — listens to bus.payment_requested
@@ -151,6 +154,9 @@ class MainWindow(QWidget):
     def _switch_screen(self, key):
         idx = SCREEN_KEYS.index(key) if key in SCREEN_KEYS else 0
         self._stack.setCurrentIndex(idx)
+
+    def _open_settings(self):
+        SettingsModal(self).exec_()
 
     def closeEvent(self, event):
         self._reporter.stop()
