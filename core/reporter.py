@@ -152,6 +152,8 @@ class Reporter(QObject):
                     "last_heartbeat": now,
                     "cpu_percent": self._cpu,
                     "temperature_c": self._temp,
+                    "name": os.getenv("GKM_KIOSK_NAME", self._kiosk_id),
+                    "location": os.getenv("GKM_KIOSK_LOCATION", ""),
                 })
 
             self._kiosk_ref.collection("metrics").add({
