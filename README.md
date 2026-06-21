@@ -36,7 +36,7 @@ Square Payment Terminal
 | X-axis time labels on graphs | ✅ Working |
 | Time-window selector (1 min/5 min/1 hr/24 hr) | ✅ Working |
 | Test suite (77 tests, pytest-qt) | ✅ Passing |
-| GKM reporter (heartbeat + transaction sync) | ✅ Implemented — needs Firebase credentials |
+| GKM reporter (heartbeat + transaction sync) | ✅ Live — syncing to Firestore every 60 s |
 | MDB Pi Hat integration | ⏳ Hardware arriving ~2026-06-23 |
 | Square Web API integration | ⏳ Needs credentials (see below) |
 
@@ -210,7 +210,9 @@ Square Terminal API does not natively support Bitcoin. Recommended path:
 
 ## GreenStar Kiosk Manager (GKM) Integration (`core/reporter.py`)
 
-GKM is a separate web dashboard (`greenstar-kiosk-manager` repo) that monitors multiple kiosks in real time.
+GKM is a separate web dashboard at **https://greenstar-kiosk-manager.vercel.app** (repo: `greenstar-kiosk-manager`).  
+It monitors all kiosks in real time — live CPU/temperature, online/offline status, and transaction history.  
+Sign in with a Google account. Data is stored in Firestore project `greenstar-kiosk-mgr`.
 
 ### How it works
 
@@ -223,26 +225,25 @@ On every `transaction_added` / `transaction_event` signal it immediately syncs t
 
 If `firebase-admin` is not installed or the env vars are missing, `Reporter` logs a warning and no-ops — the kiosk continues to function normally.
 
-### Setup
+### Current Pi config (kiosk-001)
 
-1. Create a Firebase project at https://console.firebase.google.com
-2. Enable **Firestore** and **Google Authentication**
-3. Create a service account (Project settings → Service accounts → Generate new private key)
-4. Copy the JSON key to the Pi, e.g. `/home/pi/greenstar-key.json`
-5. Add to `.env`:
-   ```
-   FIREBASE_SERVICE_ACCOUNT_PATH=/home/pi/greenstar-key.json
-   GKM_KIOSK_ID=kiosk-001
-   GKM_KIOSK_NAME=Kiosk #1 – Main Floor
-   GKM_KIOSK_LOCATION=Seattle, WA
-   ```
-6. Install the dependency: `pip3 install firebase-admin`
+Key at `/home/ali/greenstar-key.json` (service account: `greenstar-kiosk-mgr` Firebase project).  
+`.env` in the repo root (gitignored):
 
-### Status in Current Status table
+```
+FIREBASE_SERVICE_ACCOUNT_PATH=/home/ali/greenstar-key.json
+GKM_KIOSK_ID=kiosk-001
+GKM_KIOSK_NAME=Kiosk #1
+GKM_KIOSK_LOCATION=Seattle, WA
+```
 
-| Component | Status |
-|---|---|
-| GKM reporter (`core/reporter.py`) | ✅ Implemented — awaiting Firebase credentials |
+### Adding a new kiosk
+
+1. Generate a new service account key (Firebase Console → Project Settings → Service Accounts → Generate new private key)
+2. Copy the JSON key to the new Pi
+3. Set the four `GKM_*` env vars in `.env` with a unique `GKM_KIOSK_ID`
+4. Install deps: `pip3 install firebase-admin python-dotenv --break-system-packages`
+5. The kiosk self-registers in Firestore on first heartbeat and appears on the dashboard within 60 s
 
 ---
 
