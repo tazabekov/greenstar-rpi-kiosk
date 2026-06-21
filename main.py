@@ -7,7 +7,7 @@ from PyQt5.QtCore import Qt, QTimer, QPointF, pyqtSignal, QObject
 from PyQt5.QtGui import (
     QPainter, QPen, QColor, QFont, QLinearGradient, QPolygonF, QPainterPath
 )
-from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
+from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton, QButtonGroup
 
 BG_DARK      = QColor("#0d0d0d")
 PANEL_BG     = QColor("#111111")
@@ -45,7 +45,7 @@ QPushButton#interval:hover {
     border-color: #39ff14;
     background-color: #0d1f08;
 }
-QPushButton#interval[active="true"] {
+QPushButton#interval:checked {
     background-color: #39ff14;
     color: #0d0d0d;
     border-color: #39ff14;
@@ -273,16 +273,20 @@ class MainWindow(QWidget):
         bl.setSpacing(12)
 
         self._interval_buttons = {}
+        self._btn_group = QButtonGroup(self)
+        self._btn_group.setExclusive(True)
         for label in INTERVALS:
             btn = QPushButton(label)
             btn.setObjectName("interval")
+            btn.setCheckable(True)
             btn.setFixedHeight(50)
             btn.setMinimumWidth(90)
             btn.clicked.connect(lambda checked, l=label: self._select_interval(l))
             bl.addWidget(btn)
+            self._btn_group.addButton(btn)
             self._interval_buttons[label] = btn
 
-        self._set_button_active("1 s")
+        self._interval_buttons["1 s"].setChecked(True)
         root.addWidget(bar)
 
     def _build_sampler(self):
@@ -298,18 +302,8 @@ class MainWindow(QWidget):
         if label == self._active_interval:
             return
         self._active_interval = label
-        self._set_button_active(label)
-        self.cpu_graph.data.clear()
-        self.temp_graph.data.clear()
-        self.cpu_graph.update()
-        self.temp_graph.update()
+        self._interval_buttons[label].setChecked(True)
         self.sampler.set_interval(INTERVALS[label])
-
-    def _set_button_active(self, active_label):
-        for label, btn in self._interval_buttons.items():
-            btn.setProperty("active", "true" if label == active_label else "false")
-            btn.style().unpolish(btn)
-            btn.style().polish(btn)
 
     def paintEvent(self, event):
         painter = QPainter(self)
