@@ -5,7 +5,7 @@ from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QColor, QPainter
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout, QGridLayout, QStackedWidget,
-    QLabel, QPushButton, QWidget,
+    QLabel, QPushButton, QScrollArea, QWidget,
 )
 
 from core.bus import bus
@@ -62,14 +62,13 @@ class PaymentModal(QDialog):
             self.resize(parent.width(), parent.height())
             self.move(0, 0)
 
-        self._digits          = ""
-        self._payment_type    = "fiat"
-        self._tx_id           = None
-        self._dot_count       = 0
-        self._dot_timer       = None   # created in _request(); guarded everywhere
-        self._elapsed_s       = 0
-        self._elapsed_timer   = None
+        self._digits           = ""
+        self._payment_type     = "fiat"
+        self._tx_id            = None
+        self._elapsed_s        = 0
+        self._elapsed_timer    = None
         self._result_connected = False
+        self._event_connected  = False
         self._build_ui()
 
     # ── UI construction ──────────────────────────────────────────────
@@ -176,28 +175,37 @@ class PaymentModal(QDialog):
     def _build_processing_page(self):
         page = QWidget()
         layout = QVBoxLayout(page)
-        layout.setContentsMargins(20, 20, 20, 20)
-        layout.setSpacing(12)
-        layout.addStretch()
+        layout.setContentsMargins(20, 14, 20, 14)
+        layout.setSpacing(8)
 
-        self._processing_lbl = QLabel("Processing")
-        self._processing_lbl.setAlignment(Qt.AlignCenter)
-        self._processing_lbl.setStyleSheet(
-            "color: #39ff14; font-size: 18pt; font-weight: bold; border: none;"
+        title = QLabel("Processing Payment")
+        title.setAlignment(Qt.AlignCenter)
+        title.setStyleSheet("color: #39ff14; font-size: 15pt; font-weight: bold; border: none;")
+        layout.addWidget(title)
+
+        # Scrollable live event log
+        log_container = QWidget()
+        log_container.setStyleSheet("background: transparent;")
+        self._proc_log_layout = QVBoxLayout(log_container)
+        self._proc_log_layout.setContentsMargins(6, 4, 6, 4)
+        self._proc_log_layout.setSpacing(1)
+        self._proc_log_layout.setAlignment(Qt.AlignTop)
+
+        self._proc_scroll = QScrollArea()
+        self._proc_scroll.setWidget(log_container)
+        self._proc_scroll.setWidgetResizable(True)
+        self._proc_scroll.setStyleSheet(
+            "QScrollArea { background: #0a0a0a; border: 1px solid #1e2e1e; border-radius: 6px; }"
+            "QScrollBar:vertical { width: 6px; background: #0a0a0a; }"
+            "QScrollBar::handle:vertical { background: #2a2a2a; border-radius: 3px; }"
+            "QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical { height: 0; }"
         )
-        layout.addWidget(self._processing_lbl)
-
-        self._processing_sub = QLabel("Waiting for payment terminal…")
-        self._processing_sub.setAlignment(Qt.AlignCenter)
-        self._processing_sub.setStyleSheet("color: #909090; font-size: 11pt; border: none;")
-        layout.addWidget(self._processing_sub)
+        layout.addWidget(self._proc_scroll, stretch=1)
 
         self._elapsed_lbl = QLabel("")
         self._elapsed_lbl.setAlignment(Qt.AlignCenter)
         self._elapsed_lbl.setStyleSheet("color: #444444; font-size: 9pt; border: none;")
         layout.addWidget(self._elapsed_lbl)
-
-        layout.addStretch()
 
         cancel = QPushButton("Cancel")
         cancel.setFixedHeight(44)
@@ -307,11 +315,15 @@ class PaymentModal(QDialog):
         bus.payment_result.connect(self._on_result, Qt.UniqueConnection)
         self._result_connected = True
 
-        # Animated dots on processing label
-        self._dot_count = 0
-        self._dot_timer = QTimer(self)
-        self._dot_timer.timeout.connect(self._tick_dots)
-        self._dot_timer.start(500)
+        # Connect to live event stream for the log panel
+        bus.transaction_event.connect(self._on_processing_event, Qt.UniqueConnection)
+        self._event_connected = True
+
+        # Clear any log entries from a previous run
+        while self._proc_log_layout.count():
+            child = self._proc_log_layout.takeAt(0)
+            if child.widget():
+                child.widget().deleteLater()
 
         # Elapsed time counter
         self._elapsed_s = 0
@@ -323,18 +335,49 @@ class PaymentModal(QDialog):
         self._stack.setCurrentIndex(1)
         bus.payment_requested.emit(tx.tx_id, amount, self._payment_type)
 
-    def _tick_dots(self):
-        self._dot_count = (self._dot_count + 1) % 4
-        self._processing_lbl.setText("Processing" + "." * self._dot_count)
-
     def _tick_elapsed(self):
         self._elapsed_s += 1
         self._elapsed_lbl.setText(f"{self._elapsed_s}s")
+
+    _SOURCE_COLORS = {
+        "MDB":    "#39ff14",
+        "SQUARE": "#4db8ff",
+        "SYSTEM": "#666666",
+    }
+
+    def _on_processing_event(self, tx_id, event):
+        if tx_id != self._tx_id:
+            return
+        arrow = "←" if event.direction == "in" else "→"
+        color = self._SOURCE_COLORS.get(event.source, "#666666")
+        ts = event.timestamp.strftime("%H:%M:%S")
+        html = (
+            f'<span style="color:#444444; font-family:monospace; font-size:9pt;">{ts}</span>'
+            f'&nbsp;&nbsp;<span style="color:{color}; font-weight:bold; font-size:9pt;">'
+            f'{event.source}&nbsp;{arrow}</span>'
+            f'&nbsp;&nbsp;<span style="color:#cccccc; font-size:9pt;">{event.message}</span>'
+        )
+        lbl = QLabel(html)
+        lbl.setTextFormat(Qt.RichText)
+        lbl.setWordWrap(True)
+        lbl.setStyleSheet("border: none; padding: 2px 0;")
+        self._proc_log_layout.addWidget(lbl)
+        QTimer.singleShot(
+            10, lambda: self._proc_scroll.verticalScrollBar().setValue(
+                self._proc_scroll.verticalScrollBar().maximum()
+            )
+        )
 
     def _on_result(self, tx_id, success, message):
         if tx_id != self._tx_id:
             return
         self._cleanup_timers()
+        if self._event_connected:
+            try:
+                bus.transaction_event.disconnect(self._on_processing_event)
+            except RuntimeError:
+                pass
+            self._event_connected = False
         if self._result_connected:
             bus.payment_result.disconnect(self._on_result)
             self._result_connected = False
@@ -352,15 +395,19 @@ class PaymentModal(QDialog):
         QTimer.singleShot(2500, self.accept)
 
     def _cleanup_timers(self):
-        if self._dot_timer and self._dot_timer.isActive():
-            self._dot_timer.stop()
         if self._elapsed_timer and self._elapsed_timer.isActive():
             self._elapsed_timer.stop()
 
     # ── Lifecycle ─────────────────────────────────────────────────────
 
     def closeEvent(self, event):
-        """Ensure signal is always disconnected regardless of how the dialog closes."""
+        """Ensure signals are always disconnected regardless of how the dialog closes."""
+        if self._event_connected:
+            try:
+                bus.transaction_event.disconnect(self._on_processing_event)
+            except RuntimeError:
+                pass
+            self._event_connected = False
         if self._result_connected:
             bus.payment_result.disconnect(self._on_result)
             self._result_connected = False

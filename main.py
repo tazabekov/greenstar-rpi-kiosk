@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 
 from PyQt5.QtCore import Qt
 from PyQt5.QtGui import QPainter
+from PyQt5.QtNetwork import QLocalServer, QLocalSocket
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QStackedWidget
 
 from core.bus import bus
@@ -77,6 +78,7 @@ SAMPLE_TRANSACTIONS = [
 ]
 
 SCREEN_KEYS = ["dashboard", "system"]
+_INSTANCE_KEY = "mygreenstar-kiosk"
 
 
 class MainWindow(QWidget):
@@ -86,6 +88,12 @@ class MainWindow(QWidget):
         self.resize(screen.width(), screen.height())
         self.move(0, 0)
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint)
+
+        # Single-instance server — listens for "activate" from later launches
+        QLocalServer.removeServer(_INSTANCE_KEY)   # clean up any stale socket
+        self._ipc_server = QLocalServer(self)
+        self._ipc_server.listen(_INSTANCE_KEY)
+        self._ipc_server.newConnection.connect(self._on_second_instance)
 
         root = QVBoxLayout(self)
         root.setContentsMargins(0, 0, 0, 0)
@@ -120,6 +128,15 @@ class MainWindow(QWidget):
         for tx in reversed(SAMPLE_TRANSACTIONS):
             bus.transaction_added.emit(tx)
 
+    def _on_second_instance(self):
+        conn = self._ipc_server.nextPendingConnection()
+        conn.readyRead.connect(self._activate)
+
+    def _activate(self):
+        self.setWindowState(self.windowState() & ~Qt.WindowMinimized)
+        self.raise_()
+        self.activateWindow()
+
     def _switch_screen(self, key):
         idx = SCREEN_KEYS.index(key) if key in SCREEN_KEYS else 0
         self._stack.setCurrentIndex(idx)
@@ -136,6 +153,19 @@ class MainWindow(QWidget):
 if __name__ == "__main__":
     os.environ.setdefault("DISPLAY", ":0")
     app = QApplication(sys.argv)
+
+    # If another instance is already running, signal it and exit immediately.
+    _probe = QLocalSocket()
+    _probe.connectToServer(_INSTANCE_KEY)
+    if _probe.waitForConnected(500):
+        _probe.write(b"activate")
+        _probe.flush()
+        _probe.waitForBytesWritten(500)
+        _probe.disconnectFromServer()
+        print("MyGreenStar kiosk is already running — bringing it to the front.")
+        sys.exit(0)
+    _probe.close()
+
     app.setStyle("Fusion")
     app.setStyleSheet(GLOBAL_STYLESHEET)
     win = MainWindow()

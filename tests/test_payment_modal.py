@@ -204,27 +204,16 @@ class TestAmountValidation:
 
     def test_payment_requested_switches_stack_to_processing(self, modal, qtbot):
         """After a valid request, the stacked widget shows page 1 (processing)."""
-        modal._key_press("1")
-        modal._key_press("0")
-        modal._key_press("0")
+        modal._key_press("5")  # $5 — within the $10 max limit
 
         with qtbot.waitSignal(bus.payment_requested, timeout=1000):
             modal._request()
 
         assert modal._stack.currentIndex() == 1
 
-    def test_amount_label_flashes_red_on_zero(self, modal, qtbot):
-        """When amount is 0, the label style changes to red to signal the error."""
-        modal._request()  # amount is 0
-        # Style should have changed immediately
-        current_style = modal._amount_label.styleSheet()
-        assert "#ff4444" in current_style, (
-            "Amount label should turn red when amount is zero"
-        )
-        # Wait for the QTimer.singleShot(600ms) restore callback to fire
-        # before the modal is destroyed, otherwise the next test's setup
-        # receives a RuntimeError from the dangling lambda.
-        qtbot.wait(700)
+    def test_request_btn_disabled_on_zero_amount(self, modal):
+        """When amount is 0 (no digits entered), the Request Payment button is disabled."""
+        assert not modal._request_btn.isEnabled()
 
 
 # ---------------------------------------------------------------------------
