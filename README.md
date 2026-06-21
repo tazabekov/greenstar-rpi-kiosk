@@ -1,5 +1,7 @@
 # MyGreenStar Kiosk
 
+> **Part of the GreenStar system.** The web dashboard and system brain lives at [`greenstar-kiosk-manager`](https://github.com/tazabekov/greenstar-kiosk-manager) — that repo is the authoritative source for architecture, registered kiosks, and deployment info.
+
 Coffee vending machine payment kiosk running on a Raspberry Pi 5 with an 800×480 capacitive touchscreen.
 
 ## Purpose
