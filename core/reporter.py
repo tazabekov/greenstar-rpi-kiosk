@@ -3,7 +3,7 @@ GKM Reporter — pushes heartbeats, metrics, and transactions to Firestore.
 
 Requires firebase-admin and the following .env vars:
   FIREBASE_SERVICE_ACCOUNT_JSON  Firebase service-account key as a single-line JSON string
-  GKM_KIOSK_ID                   unique kiosk identifier (e.g. "kiosk-001")
+  GKM_KIOSK_ID                   unique kiosk identifier (e.g. "01-test-kiosk")
   GKM_KIOSK_NAME                 display name (e.g. "Santelli Starkey Ranch")
   GKM_KIOSK_LOCATION             location label (e.g. "Odessa, FL")
 

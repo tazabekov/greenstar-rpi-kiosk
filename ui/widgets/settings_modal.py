@@ -113,7 +113,7 @@ class SettingsModal(QDialog):
         self._id_edit = QLineEdit(os.getenv("GKM_KIOSK_ID", ""))
         self._id_edit.setFixedHeight(44)
         self._id_edit.setStyleSheet(_INPUT)
-        self._id_edit.setPlaceholderText("e.g. kiosk-001")
+        self._id_edit.setPlaceholderText("e.g. 01-test-kiosk")
         adv_layout.addWidget(self._id_edit)
 
         warning = QLabel(

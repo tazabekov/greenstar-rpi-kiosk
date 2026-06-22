@@ -222,13 +222,13 @@ On every `transaction_added` / `transaction_event` signal it immediately syncs t
 
 If `firebase-admin` is not installed or the env vars are missing, `Reporter` logs a warning and no-ops — the kiosk continues to function normally.
 
-### Current Pi config (kiosk-001)
+### Current Pi config (01-test-kiosk)
 
 `.env` in the repo root (gitignored):
 
 ```
 FIREBASE_SERVICE_ACCOUNT_JSON='{ ...full JSON key as single line... }'
-GKM_KIOSK_ID='kiosk-001'
+GKM_KIOSK_ID='01-test-kiosk'
 GKM_KIOSK_NAME='Santelli Starkey Ranch'
 GKM_KIOSK_LOCATION='Odessa, FL'
 ```
