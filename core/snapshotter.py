@@ -157,7 +157,10 @@ class Snapshotter(QObject):
         try:
             from picamera2 import Picamera2
             cam = Picamera2(0)
-            cfg = cam.create_still_configuration(
+            # Use the same ISP pipeline as the live preview so colours match.
+            # create_still_configuration applies a different colour correction
+            # matrix that produces a yellow cast relative to the preview feed.
+            cfg = cam.create_preview_configuration(
                 main={"size": (2592, 1944), "format": "RGB888"}
             )
             cam.configure(cfg)
@@ -165,13 +168,6 @@ class Snapshotter(QObject):
             # Wait for AE/AWB to converge — first frames are underexposed
             # and incorrectly white-balanced.
             time.sleep(2)
-            # Lock the converged AWB colour gains for the still so the
-            # colour balance matches the live preview.
-            meta = cam.capture_metadata()
-            colour_gains = meta.get("ColourGains")
-            if colour_gains:
-                cam.set_controls({"AwbEnable": False, "ColourGains": colour_gains})
-                time.sleep(0.1)  # let the locked gains take effect
             cam.capture_file(tmp_path)
             cam.stop()
             cam.close()
