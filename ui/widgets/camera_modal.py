@@ -47,6 +47,7 @@ class CameraModal(QDialog):
         self._cam = None
         self._running = False
         self._last_frame_time = 0.0
+        self._consecutive_errors = 0
         self._frame_ready.connect(self._show_frame)
         self._feed_error.connect(self._feed_lost)
         self._build_ui()
@@ -124,7 +125,7 @@ class CameraModal(QDialog):
             self._status.setText(f"Camera error: {exc}")
 
     def _on_frame(self, request):
-        """picamera2 internal thread: throttle to ~15 fps, emit frame signal."""
+        """picamera2 internal thread: throttle to ~15 fps, emit pre-scaled QImage."""
         if not self._running:
             return
         now = time.monotonic()
@@ -133,26 +134,30 @@ class CameraModal(QDialog):
         self._last_frame_time = now
         try:
             arr = request.make_array("main")
-            # "RGB888" delivers BGR order; np.ascontiguousarray also copies the data
+            # "RGB888" delivers BGR; flip channels and copy into a contiguous buffer
             frame = np.ascontiguousarray(arr[:, :, ::-1])
-            self._frame_ready.emit(frame)
+            h, w = frame.shape[:2]
+            # QImage is safe to create/scale off the main thread; QPixmap is not.
+            # .copy() owns the pixel data independently of the numpy array.
+            img = QImage(frame.data, w, h, w * 3, QImage.Format_RGB888).copy()
+            vw, vh = self._view.width(), self._view.height()
+            if vw > 0 and vh > 0:
+                img = img.scaled(vw, vh, Qt.KeepAspectRatio, Qt.FastTransformation)
+            self._consecutive_errors = 0
+            self._frame_ready.emit(img)
         except Exception as exc:
-            self._feed_error.emit(str(exc))
+            self._consecutive_errors += 1
+            if self._consecutive_errors >= 5:
+                self._feed_error.emit(str(exc))
 
-    def _show_frame(self, frame):
-        """Main thread: render a captured frame into the view label."""
+    def _show_frame(self, img):
+        """Main thread: convert pre-scaled QImage to pixmap and display."""
         if not self._running:
             return
-        h, w = frame.shape[:2]
-        img = QImage(frame.data, w, h, w * 3, QImage.Format_RGB888)
-        pix = QPixmap.fromImage(img).scaled(
-            self._view.width(), self._view.height(),
-            Qt.KeepAspectRatio, Qt.SmoothTransformation,
-        )
-        self._view.setPixmap(pix)
+        self._view.setPixmap(QPixmap.fromImage(img))
 
     def _feed_lost(self, msg: str):
-        """Main thread: show error."""
+        """Main thread: show error after 5 consecutive failures."""
         self._running = False
         self._status.setText(f"Feed lost: {msg}")
 
