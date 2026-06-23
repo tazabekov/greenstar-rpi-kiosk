@@ -57,6 +57,7 @@ greenstar-rpi-kiosk/
 │   ├── sampler.py              # DataSampler — CPU % and temperature via psutil
 │   ├── reporter.py             # GKM Reporter — heartbeat + transaction sync to Firestore
 │   ├── snapshotter.py          # Snapshotter — periodic camera JPEG → Firebase Storage
+│   ├── camera_lock.py          # Shared threading.Lock — prevents CameraModal + Snapshotter from opening camera simultaneously
 │   ├── square.py               # SquareMockClient (active) + SquareClient skeleton
 │   └── mdb.py                  # MDB Pi Hat stub (to be implemented)
 ├── ui/
@@ -238,7 +239,7 @@ GKM_SNAPSHOT_INTERVAL_MIN=5                         # 0 = disabled
 
 The interval can also be changed at runtime via **Settings → Advanced → Snapshot Interval** — no restart needed.
 
-If the Camera Modal is open when a snapshot is due, the snapshot is silently skipped and retried at the next interval (both use `Picamera2(0)` and cannot run concurrently).
+If the Camera Modal is open when a snapshot is due, the snapshot is silently skipped and retried at the next interval. This is enforced by `core/camera_lock.py` — a shared `threading.Lock` both components must acquire before constructing a `Picamera2` instance. Without this lock, a failed Snapshotter init corrupts picamera2's global listener thread and silently kills the live feed.
 
 If `picamera2` is not installed, `firebase-admin` is missing, or the env vars are unset, `Snapshotter` logs a warning and no-ops.
 
