@@ -18,6 +18,7 @@ from PyQt5.QtNetwork import QLocalServer, QLocalSocket
 from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QStackedWidget
 
 from core.bus import bus
+from core.camera_registry import registry
 from core.models import Transaction, TransactionEvent
 from core.reporter import Reporter
 from core.sampler import DataSampler
@@ -28,13 +29,6 @@ from ui.header import HeaderWidget
 from ui.screens.dashboard import DashboardScreen
 from ui.screens.system import SystemScreen
 from ui.widgets.settings_modal import SettingsModal
-
-try:
-    from picamera2 import Picamera2 as _Picamera2
-    _CAMERAS = _Picamera2.global_camera_info()
-except Exception:
-    _CAMERAS = []
-
 
 def _make_sample_events(base_time, payment_type, amount, checkout_id):
     """Pre-baked event log for sample transactions shown on startup."""
@@ -122,7 +116,7 @@ class MainWindow(QWidget):
         self._header.tab_changed.connect(self._switch_screen)
         self._header.settings_requested.connect(self._open_settings)
         self._header.quit_requested.connect(self._confirm_quit)
-        if _CAMERAS:
+        if registry.cameras():
             self._header.show_camera_button()
             self._header.cameras_requested.connect(self._open_camera_modal)
         root.addWidget(self._header)
@@ -220,6 +214,8 @@ if __name__ == "__main__":
         print("MyGreenStar kiosk is already running — bringing it to the front.")
         sys.exit(0)
     _probe.close()
+
+    registry.probe()   # detect attached cameras before MainWindow starts
 
     app.setStyle("Fusion")
     app.setStyleSheet(GLOBAL_STYLESHEET)
