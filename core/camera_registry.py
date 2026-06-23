@@ -26,18 +26,26 @@ class CameraRegistry:
             return
 
         raw = Picamera2.global_camera_info()
+        self._cameras.clear()
+        self._locks.clear()
         for cam_dict in raw:
             idx = cam_dict["Num"]
             model = cam_dict.get("Model", f"camera{idx}")
+            cam = None
             try:
                 cam = Picamera2(idx)
                 w, h = cam.camera_properties["PixelArraySize"]
-                cam.close()
             except Exception as exc:
                 log.warning(
                     "CameraRegistry: failed to probe camera %d (%s) — skipping", idx, exc
                 )
                 continue
+            finally:
+                if cam is not None:
+                    try:
+                        cam.close()
+                    except Exception:
+                        pass
             self._cameras.append(CameraInfo(idx=idx, model=model, max_w=w, max_h=h))
             self._locks[idx] = threading.Lock()
             log.info("CameraRegistry: camera %d — %s %dx%d", idx, model, w, h)
