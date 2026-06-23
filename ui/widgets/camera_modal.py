@@ -3,7 +3,7 @@ from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QColor, QImage, QPainter, QPixmap
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout,
-    QLabel, QPushButton, QWidget,
+    QLabel, QPushButton, QSizePolicy, QWidget,
 )
 
 _TITLE_STYLE = "color: #39ff14; font-size: 14pt; font-weight: bold; border: none;"
@@ -73,10 +73,11 @@ class CameraModal(QDialog):
         title_row.addWidget(x_btn)
         vbox.addLayout(title_row)
 
-        # Video view — fills all available space
+        # Video view — fills all available space, ignores pixmap sizeHint
         self._view = QLabel()
         self._view.setAlignment(Qt.AlignCenter)
         self._view.setStyleSheet(_VIEW_STYLE)
+        self._view.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
         vbox.addWidget(self._view, stretch=1)
 
         # Status
