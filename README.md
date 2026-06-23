@@ -57,7 +57,7 @@ greenstar-rpi-kiosk/
 │   ├── sampler.py              # DataSampler — CPU % and temperature via psutil
 │   ├── reporter.py             # GKM Reporter — heartbeat + transaction sync to Firestore
 │   ├── snapshotter.py          # Snapshotter — periodic camera JPEG → Firebase Storage
-│   ├── camera_lock.py          # Shared threading.Lock — prevents CameraModal + Snapshotter from opening camera simultaneously
+│   ├── camera_registry.py      # CameraRegistry — discovers cameras, max resolution, per-camera locks
 │   ├── square.py               # SquareMockClient (active) + SquareClient skeleton
 │   └── mdb.py                  # MDB Pi Hat stub (to be implemented)
 ├── ui/
@@ -215,20 +215,28 @@ Square Terminal API does not natively support Bitcoin. Recommended path:
 
 ## Camera Snapshot Upload (`core/snapshotter.py`)
 
-Every `GKM_SNAPSHOT_INTERVAL_MIN` minutes, the kiosk captures a JPEG from the OV5647 camera and uploads it to **Firebase Storage** at:
+Every `GKM_SNAPSHOT_INTERVAL_MIN` minutes, the kiosk discovers all attached cameras via `CameraRegistry.probe()` and captures a JPEG from each, uploading to **Firebase Storage** at:
 
 ```
 kiosks/{kiosk_id}/camera0/last-snapshot.jpg
+kiosks/{kiosk_id}/camera1/last-snapshot.jpg
+kiosks/{kiosk_id}/camera2/last-snapshot.jpg
+... (one per detected camera)
 ```
 
-The same path is overwritten each time (no accumulation). After a successful upload, the kiosk Firestore document is stamped with:
+Each path is overwritten on each snapshot cycle (no accumulation). After a successful upload, the kiosk Firestore document is stamped with:
 
 ```
-last_snapshot_path   — Storage path string
-last_snapshot_at     — Firestore SERVER_TIMESTAMP
+last_snapshot_path           — Storage path for camera 0 (backward-compat field)
+last_snapshot_at             — Firestore SERVER_TIMESTAMP
+last_snapshot_path_camera1   — Storage path for camera 1 (if present)
+last_snapshot_path_camera2   — Storage path for camera 2 (if present)
+... (one per camera)
 ```
 
-The web dashboard reads `last_snapshot_path` and `last_snapshot_at` from the kiosk Firestore document to show a **Camera** row inside the Kiosk Health card on the kiosk detail page (time-ago format, "View" link opens the full snapshot modal). These fields are written by `Snapshotter` after each successful upload.
+The web dashboard reads these fields from the kiosk Firestore document to show a **Camera** row inside the Kiosk Health card on the kiosk detail page (time-ago format, "View" link opens the snapshot modal). These fields are written by `Snapshotter` after each successful upload.
+
+The **Camera Modal** (`CameraModal`) detects all cameras at startup and displays them with model name and max resolution (e.g., "IMX708 · 4608×3456 · ● Live"). Layout adapts by camera count: 1 camera = single full-screen panel; 2 cameras = side-by-side; 3+ cameras = tabbed view.
 
 **Configuration** (in `.env`):
 
@@ -239,7 +247,7 @@ GKM_SNAPSHOT_INTERVAL_MIN=5                         # 0 = disabled
 
 The interval can also be changed at runtime via **Settings → Advanced → Snapshot Interval** — no restart needed.
 
-If the Camera Modal is open when a snapshot is due, the snapshot is silently skipped and retried at the next interval. This is enforced by `core/camera_lock.py` — a shared `threading.Lock` both components must acquire before constructing a `Picamera2` instance. Without this lock, a failed Snapshotter init corrupts picamera2's global listener thread and silently kills the live feed.
+If the Camera Modal is open when a snapshot is due, the snapshot is silently skipped and retried at the next interval. This is enforced by `core/camera_registry.py` — a per-camera `threading.Lock` both `Snapshotter` and `CameraModal` must acquire before constructing a `Picamera2` instance. Without this lock, concurrent access corrupts picamera2's global listener thread and silently kills the live feed.
 
 If `picamera2` is not installed, `firebase-admin` is missing, or the env vars are unset, `Snapshotter` logs a warning and no-ops.
 

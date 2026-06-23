@@ -1,16 +1,24 @@
 """
-Snapshotter — periodic camera capture + Firebase Storage upload.
+Snapshotter — periodic multi-camera capture + Firebase Storage upload.
 
-Every GKM_SNAPSHOT_INTERVAL_MIN minutes, captures a JPEG from the OV5647
-camera and uploads it to Firebase Storage at:
+Every GKM_SNAPSHOT_INTERVAL_MIN minutes, discovers all attached cameras via
+CameraRegistry.probe() and captures a JPEG from each, uploading to Firebase
+Storage at:
   kiosks/{kiosk_id}/camera0/last-snapshot.jpg
+  kiosks/{kiosk_id}/camera1/last-snapshot.jpg
+  kiosks/{kiosk_id}/camera2/last-snapshot.jpg
+  ... (one per detected camera)
 
 After a successful upload, updates the kiosk Firestore document with:
-  last_snapshot_path  — Storage path (string)
-  last_snapshot_at    — server timestamp
+  last_snapshot_path           — Storage path for camera 0 (backward-compat)
+  last_snapshot_path_camera1   — Storage path for camera 1 (if present)
+  last_snapshot_path_camera2   — Storage path for camera 2 (if present)
+  ... (one field per camera)
+  last_snapshot_at             — server timestamp
 
-If the camera is already in use (e.g. CameraModal is open), the snapshot
-is silently skipped and retried at the next scheduled interval.
+If a camera is already in use (e.g. CameraModal is open), that camera's
+snapshot is silently skipped and retried at the next scheduled interval.
+Uses core/camera_registry.py per-camera locks to prevent concurrent access.
 
 Requires in .env:
   GKM_FIREBASE_STORAGE_BUCKET   e.g. myproject.appspot.com
