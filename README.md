@@ -37,7 +37,7 @@ Square Payment Terminal
 | Processing screen with live event log + elapsed timer | ✅ Working |
 | X-axis time labels on graphs | ✅ Working |
 | Time-window selector (1 min/5 min/1 hr/24 hr) | ✅ Working |
-| Test suite (77 tests, pytest-qt) | ✅ Passing |
+| Test suite (87 tests, pytest-qt) | ✅ Passing |
 | GKM reporter (heartbeat + transaction sync) | ✅ Live — syncing to Firestore every 60 s |
 | Camera live view | ✅ OV5647 via CSI; conditional 📷 button in header |
 | MDB Pi Hat integration | ⏳ Hardware arriving ~2026-06-23 |
@@ -139,7 +139,7 @@ Press **Esc** to quit (development only).
 python3 -m pytest tests/ -v
 ```
 
-77 tests, 0 failures. Covers models, AppBus signals, Square mock event sequence, and PaymentModal logic.
+87 tests, 0 failures. Covers models, AppBus signals, Square mock event sequence, PaymentModal logic, and camera integration.
 
 ## Display Notes
 
