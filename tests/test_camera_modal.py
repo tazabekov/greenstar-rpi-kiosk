@@ -8,7 +8,7 @@ import pytest
 from PyQt5.QtWidgets import QLabel, QPushButton
 
 from ui.widgets.camera_modal import CameraModal
-from ui.header import HeaderWidget
+from ui.header import HeaderWidget, CameraIcon
 
 
 class TestCameraModal:
@@ -25,8 +25,8 @@ class TestCameraModal:
     def test_status_shows_resolution(self, qtbot):
         modal = CameraModal(parent=None)
         qtbot.addWidget(modal)
-        assert "640" in modal._status.text()
-        assert "480" in modal._status.text()
+        assert "2592" in modal._status.text()
+        assert "1944" in modal._status.text()
 
     def test_timer_not_active_before_show(self, qtbot):
         modal = CameraModal(parent=None)
@@ -67,16 +67,15 @@ class TestHeaderCameraButton:
         header.show_camera_button()
         received = []
         header.cameras_requested.connect(lambda: received.append(True))
-        # find the camera button by text
         cam_btn = None
         for i in range(header.layout().count()):
             item = header.layout().itemAt(i)
             w = item.widget() if item else None
-            if isinstance(w, QPushButton) and w.text() == "\U0001f4f7":
+            if isinstance(w, CameraIcon):
                 cam_btn = w
                 break
-        assert cam_btn is not None, "Camera button not found in header layout"
-        cam_btn.click()
+        assert cam_btn is not None, "CameraIcon not found in header layout"
+        cam_btn.clicked.emit()
         assert received == [True]
 
     def test_camera_button_inserted_before_gear(self, qtbot):
@@ -87,7 +86,7 @@ class TestHeaderCameraButton:
         for i in range(header.layout().count()):
             item = header.layout().itemAt(i)
             w = item.widget() if item else None
-            if isinstance(w, QPushButton) and w.text() == "\U0001f4f7":
+            if isinstance(w, CameraIcon):
                 cam_btn = w
                 break
         cam_idx = header.layout().indexOf(cam_btn)

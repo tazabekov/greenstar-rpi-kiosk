@@ -1,7 +1,7 @@
 import math
 from datetime import datetime
 
-from PyQt5.QtCore import Qt, QTimer, QPointF, pyqtSignal
+from PyQt5.QtCore import Qt, QTimer, QPointF, QRectF, pyqtSignal
 from PyQt5.QtGui import QPainter, QColor, QPainterPath, QPen
 from PyQt5.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton
 
@@ -37,6 +37,50 @@ class StarIcon(QWidget):
         painter.setBrush(QColor("#39ff14"))
         painter.setPen(Qt.NoPen)
         painter.drawPath(path)
+
+
+class CameraIcon(QWidget):
+    clicked = pyqtSignal()
+
+    def __init__(self, parent=None):
+        super().__init__(parent)
+        self.setFixedSize(44, 44)
+        self._hovered = False
+        self.setCursor(Qt.PointingHandCursor)
+
+    def paintEvent(self, event):
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        col = QColor("#39ff14") if self._hovered else QColor("#555555")
+        p.setPen(Qt.NoPen)
+        w, h = self.width(), self.height()
+        # camera body
+        bx, by, bw, bh = w * 0.14, h * 0.42, w * 0.72, h * 0.36
+        p.setBrush(col)
+        p.drawRoundedRect(QRectF(bx, by, bw, bh), 3, 3)
+        # viewfinder bump on top
+        vw, vh = bw * 0.28, h * 0.12
+        p.drawRoundedRect(QRectF(w / 2 - vw / 2, by - vh, vw, vh), 2, 2)
+        # lens dark ring
+        cx, cy = w / 2, by + bh * 0.52
+        ro = bh * 0.42
+        p.setBrush(QColor("#0d0d0d"))
+        p.drawEllipse(QPointF(cx, cy), ro, ro)
+        # lens highlight
+        p.setBrush(col)
+        p.drawEllipse(QPointF(cx, cy), ro * 0.55, ro * 0.55)
+
+    def enterEvent(self, event):
+        self._hovered = True
+        self.update()
+
+    def leaveEvent(self, event):
+        self._hovered = False
+        self.update()
+
+    def mousePressEvent(self, event):
+        if event.button() == Qt.LeftButton:
+            self.clicked.emit()
 
 
 class HeaderWidget(QWidget):
@@ -119,14 +163,7 @@ class HeaderWidget(QWidget):
             btn.setStyleSheet(BTN_ACTIVE if key == self._active_tab else BTN_INACTIVE)
 
     def show_camera_button(self):
-        cam_btn = QPushButton("\U0001f4f7")
-        cam_btn.setFixedSize(44, 44)
-        cam_btn.setStyleSheet(
-            "QPushButton { background-color: transparent; color: #555555;"
-            " border: none; font-size: 18pt; }"
-            " QPushButton:hover { color: #39ff14; }"
-            " QPushButton:pressed { color: #e8e8e8; }"
-        )
+        cam_btn = CameraIcon()
         cam_btn.clicked.connect(self.cameras_requested)
         idx = self.layout().indexOf(self._gear)
         self.layout().insertWidget(idx, cam_btn)

@@ -25,8 +25,8 @@ _X_STYLE = (
     " QPushButton:hover { color: #e8e8e8; }"
 )
 
-_FRAME_MS = 66        # ~15 fps
-_W, _H = 640, 480
+_FRAME_MS = 66              # ~15 fps
+_CAP_W, _CAP_H = 2592, 1944  # OV5647 full sensor resolution
 
 
 class CameraModal(QDialog):
@@ -47,19 +47,18 @@ class CameraModal(QDialog):
 
     def _build_ui(self):
         outer = QVBoxLayout(self)
-        outer.setContentsMargins(0, 0, 0, 0)
+        outer.setContentsMargins(8, 8, 8, 8)
 
         card = QWidget(self)
         card.setStyleSheet(
             "background-color: #0d0d0d;"
             " border: 2px solid #1a5c08; border-radius: 10px;"
         )
-        card.setFixedSize(700, 400)
-        outer.addWidget(card, alignment=Qt.AlignCenter)
+        outer.addWidget(card)
 
         vbox = QVBoxLayout(card)
         vbox.setContentsMargins(16, 12, 16, 16)
-        vbox.setSpacing(10)
+        vbox.setSpacing(8)
 
         # Title row
         title_row = QHBoxLayout()
@@ -74,15 +73,14 @@ class CameraModal(QDialog):
         title_row.addWidget(x_btn)
         vbox.addLayout(title_row)
 
-        # Video view
+        # Video view — fills all available space
         self._view = QLabel()
         self._view.setAlignment(Qt.AlignCenter)
-        self._view.setMinimumHeight(200)
         self._view.setStyleSheet(_VIEW_STYLE)
         vbox.addWidget(self._view, stretch=1)
 
         # Status
-        self._status = QLabel(f"{_W} × {_H}  |  15 fps")
+        self._status = QLabel(f"{_CAP_W} × {_CAP_H}  |  15 fps")
         self._status.setAlignment(Qt.AlignCenter)
         self._status.setStyleSheet(_STATUS_STYLE)
         vbox.addWidget(self._status)
@@ -109,7 +107,7 @@ class CameraModal(QDialog):
             from picamera2 import Picamera2
             self._cam = Picamera2(0)
             cfg = self._cam.create_preview_configuration(
-                main={"size": (_W, _H), "format": "RGB888"}
+                main={"size": (_CAP_W, _CAP_H), "format": "RGB888"}
             )
             self._cam.configure(cfg)
             self._cam.start()
