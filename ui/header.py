@@ -42,6 +42,7 @@ class StarIcon(QWidget):
 class HeaderWidget(QWidget):
     tab_changed        = pyqtSignal(str)   # "dashboard" | "system"
     settings_requested = pyqtSignal()
+    cameras_requested  = pyqtSignal()
 
     TABS = [("dashboard", "Dashboard"), ("system", "System")]
 
@@ -74,16 +75,16 @@ class HeaderWidget(QWidget):
 
         layout.addSpacing(8)
 
-        gear = QPushButton("⚙")
-        gear.setFixedSize(44, 44)
-        gear.setStyleSheet(
+        self._gear = QPushButton("⚙")
+        self._gear.setFixedSize(44, 44)
+        self._gear.setStyleSheet(
             "QPushButton { background-color: transparent; color: #555555;"
             " border: none; font-size: 18pt; }"
             " QPushButton:hover { color: #39ff14; }"
             " QPushButton:pressed { color: #e8e8e8; }"
         )
-        gear.clicked.connect(self.settings_requested)
-        layout.addWidget(gear)
+        self._gear.clicked.connect(self.settings_requested)
+        layout.addWidget(self._gear)
 
         layout.addSpacing(4)
 
@@ -116,3 +117,16 @@ class HeaderWidget(QWidget):
     def _refresh_tabs(self):
         for key, btn in self._tab_buttons.items():
             btn.setStyleSheet(BTN_ACTIVE if key == self._active_tab else BTN_INACTIVE)
+
+    def show_camera_button(self):
+        cam_btn = QPushButton("\U0001f4f7")
+        cam_btn.setFixedSize(44, 44)
+        cam_btn.setStyleSheet(
+            "QPushButton { background-color: transparent; color: #555555;"
+            " border: none; font-size: 18pt; }"
+            " QPushButton:hover { color: #39ff14; }"
+            " QPushButton:pressed { color: #e8e8e8; }"
+        )
+        cam_btn.clicked.connect(self.cameras_requested)
+        idx = self.layout().indexOf(self._gear)
+        self.layout().insertWidget(idx, cam_btn)
