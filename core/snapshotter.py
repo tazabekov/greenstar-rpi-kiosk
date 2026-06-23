@@ -22,6 +22,7 @@ import logging
 import os
 import tempfile
 import threading
+import time
 
 from PyQt5.QtCore import QObject, QTimer, pyqtSlot
 
@@ -161,6 +162,9 @@ class Snapshotter(QObject):
             )
             cam.configure(cfg)
             cam.start()
+            # Wait for AE/AWB to converge — the first frame is always
+            # underexposed because the ISP hasn't yet measured the scene.
+            time.sleep(2)
             cam.capture_file(tmp_path)
             cam.stop()
             cam.close()
