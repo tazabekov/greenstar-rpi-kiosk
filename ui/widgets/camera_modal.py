@@ -2,8 +2,6 @@ import logging
 import threading
 import time
 
-import numpy as np
-
 log = logging.getLogger(__name__)
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QColor, QImage, QPainter, QPixmap
@@ -32,7 +30,7 @@ _X_STYLE = (
 )
 
 _FRAME_INTERVAL = 1.0 / 15  # seconds between UI updates (~15 fps)
-_CAP_W, _CAP_H = 800, 600   # preview resolution
+_CAP_W, _CAP_H = 2592, 1944  # OV5647 full sensor resolution
 
 
 class CameraModal(QDialog):
@@ -90,8 +88,8 @@ class CameraModal(QDialog):
         self._view.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Ignored)
         vbox.addWidget(self._view, stretch=1)
 
-        # Status
-        self._status = QLabel(f"{_CAP_W} × {_CAP_H}  |  15 fps")
+        # Status — shows "● Live" while running, error text on failure
+        self._status = QLabel("")
         self._status.setAlignment(Qt.AlignCenter)
         self._status.setStyleSheet(_STATUS_STYLE)
         vbox.addWidget(self._status)
@@ -128,6 +126,7 @@ class CameraModal(QDialog):
             self._cam.post_callback = self._on_frame
             self._running = True
             self._cam.start()
+            self._status.setText("● Live")
             log.info("camera started %dx%d", _CAP_W, _CAP_H)
         except Exception as exc:
             log.exception("camera start failed")
@@ -144,15 +143,14 @@ class CameraModal(QDialog):
         self._last_frame_time = now
         try:
             arr = request.make_array("main")
-            # "RGB888" delivers BGR; flip channels and copy into a contiguous buffer
-            frame = np.ascontiguousarray(arr[:, :, ::-1])
-            h, w = frame.shape[:2]
-            # QImage is safe to create/scale off the main thread; QPixmap is not.
-            # .copy() owns the pixel data independently of the numpy array.
-            img = QImage(frame.data, w, h, w * 3, QImage.Format_RGB888).copy()
+            h, w = arr.shape[:2]
+            # Format_BGR888 matches picamera2 "RGB888" wire order (actually BGR).
+            # Avoids a full-resolution channel-flip copy — arr.data is used directly.
+            # .copy() gives Qt ownership of the pixels before arr goes out of scope.
+            img = QImage(arr.data, w, h, arr.strides[0], QImage.Format_BGR888).copy()
             vw, vh = self._view.width(), self._view.height()
             if vw > 0 and vh > 0:
-                img = img.scaled(vw, vh, Qt.KeepAspectRatio, Qt.FastTransformation)
+                img = img.scaled(vw, vh, Qt.KeepAspectRatio, Qt.SmoothTransformation)
             if self._consecutive_errors > 0:
                 log.info("frame ok after %d error(s)", self._consecutive_errors)
             self._consecutive_errors = 0
