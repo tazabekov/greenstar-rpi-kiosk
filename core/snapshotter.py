@@ -198,8 +198,30 @@ class Snapshotter(QObject):
     def _capture_jpeg(self, info) -> str | None:
         """Capture one still frame from info.idx and save to a temp JPEG. Returns path or None."""
         from core.camera_registry import registry
+
+        # If the live feed is already running, capture directly from it.
+        # AE/AWB is already converged — no lock acquisition or sleep needed.
+        running_cam = registry.get_running_cam(info.idx)
+        if running_cam is not None:
+            fd, tmp_path = tempfile.mkstemp(suffix=".jpg")
+            os.close(fd)
+            try:
+                running_cam.capture_file(tmp_path)
+                log.info("Snapshotter: captured from running stream camera %d", info.idx)
+                return tmp_path
+            except Exception as exc:
+                log.warning(
+                    "Snapshotter: camera %d live-capture failed (%s) — skipping", info.idx, exc
+                )
+                try:
+                    os.unlink(tmp_path)
+                except OSError:
+                    pass
+                return None
+
+        # Camera is idle — start our own instance.
         if not registry.acquire(info.idx, blocking=False):
-            log.info("Snapshotter: camera %d in use (CameraModal open) — skipping", info.idx)
+            log.info("Snapshotter: camera %d in use — skipping", info.idx)
             return None
         fd, tmp_path = tempfile.mkstemp(suffix=".jpg")
         os.close(fd)

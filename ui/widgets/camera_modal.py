@@ -82,14 +82,14 @@ class CameraModal(QDialog):
                 self._cam.post_callback = self._on_frame
                 self._running = True
                 self._cam.start()
+                registry.set_running_cam(self._info.idx, self._cam)
                 self._status.setText(
                     f"{self._info.model} · {self._info.max_w}×{self._info.max_h} · ● Live"
                 )
                 log.info("camera %d started %dx%d", self._info.idx, self._info.max_w, self._info.max_h)
             except Exception as exc:
                 log.exception("camera %d start failed", self._info.idx)
-                from core.camera_registry import registry as _reg
-                _reg.release(self._info.idx)
+                registry.release(self._info.idx)
                 self._status.setText(f"Camera error: {exc}")
 
         def stop(self):
@@ -108,13 +108,14 @@ class CameraModal(QDialog):
 
         @staticmethod
         def _stop_cam(cam, idx):
+            from core.camera_registry import registry
+            registry.set_running_cam(idx, None)
             try:
                 cam.stop()
                 cam.close()
             except Exception:
                 pass
             finally:
-                from core.camera_registry import registry
                 try:
                     registry.release(idx)
                 except Exception:

@@ -17,6 +17,8 @@ class CameraRegistry:
     def __init__(self):
         self._cameras: list[CameraInfo] = []
         self._locks: dict[int, threading.Lock] = {}
+        self._running_cams: dict[int, object] = {}
+        self._running_lock = threading.Lock()
 
     def probe(self) -> None:
         try:
@@ -66,6 +68,17 @@ class CameraRegistry:
                 lock.release()
             except RuntimeError:
                 pass
+
+    def set_running_cam(self, idx: int, cam: object | None) -> None:
+        with self._running_lock:
+            if cam is None:
+                self._running_cams.pop(idx, None)
+            else:
+                self._running_cams[idx] = cam
+
+    def get_running_cam(self, idx: int) -> object | None:
+        with self._running_lock:
+            return self._running_cams.get(idx)
 
 
 registry = CameraRegistry()

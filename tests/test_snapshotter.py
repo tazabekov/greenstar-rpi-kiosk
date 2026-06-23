@@ -166,7 +166,7 @@ class TestSnapshotterCaptureJpeg:
         return CameraInfo(idx=idx, model="ov5647", max_w=2592, max_h=1944)
 
     def test_capture_returns_none_when_picamera2_unavailable(self, qtbot, monkeypatch):
-        """_capture_jpeg returns None when picamera2 raises on construction."""
+        """_capture_jpeg returns None when picamera2 raises on construction (idle path)."""
         broken = types.ModuleType("picamera2")
 
         class _BrokenCam:
@@ -178,6 +178,7 @@ class TestSnapshotterCaptureJpeg:
 
         import core.camera_registry as _reg_mod
         mock_reg = mock.MagicMock()
+        mock_reg.get_running_cam.return_value = None
         mock_reg.acquire.return_value = True
         monkeypatch.setattr(_reg_mod, "registry", mock_reg)
 
@@ -186,7 +187,7 @@ class TestSnapshotterCaptureJpeg:
         assert result is None
 
     def test_capture_cleans_up_temp_file_on_error(self, qtbot, monkeypatch, tmp_path):
-        """Temp file is deleted even when capture raises."""
+        """Temp file is deleted even when capture raises (idle path)."""
         created = []
 
         def _mkstemp(suffix=""):
@@ -210,6 +211,7 @@ class TestSnapshotterCaptureJpeg:
 
         import core.camera_registry as _reg_mod
         mock_reg = mock.MagicMock()
+        mock_reg.get_running_cam.return_value = None
         mock_reg.acquire.return_value = True
         monkeypatch.setattr(_reg_mod, "registry", mock_reg)
 
@@ -220,15 +222,40 @@ class TestSnapshotterCaptureJpeg:
             assert not os.path.exists(p), "temp file was not cleaned up"
 
     def test_capture_skips_when_camera_locked(self, qtbot, monkeypatch):
-        """_capture_jpeg returns None immediately when registry.acquire returns False."""
+        """_capture_jpeg returns None when no running cam and lock is held."""
         import core.camera_registry as _reg_mod
         mock_reg = mock.MagicMock()
+        mock_reg.get_running_cam.return_value = None
         mock_reg.acquire.return_value = False
         monkeypatch.setattr(_reg_mod, "registry", mock_reg)
 
         s = Snapshotter()
         result = s._capture_jpeg(self._make_info())
         assert result is None
+
+    def test_capture_uses_running_cam_when_live(self, qtbot, monkeypatch, tmp_path):
+        """_capture_jpeg calls capture_file on the running camera, skipping lock and sleep."""
+        import core.camera_registry as _reg_mod
+
+        captured_paths = []
+
+        def _fake_capture_file(path):
+            open(path, "wb").close()
+            captured_paths.append(path)
+
+        running_cam = mock.MagicMock()
+        running_cam.capture_file.side_effect = _fake_capture_file
+
+        mock_reg = mock.MagicMock()
+        mock_reg.get_running_cam.return_value = running_cam
+        monkeypatch.setattr(_reg_mod, "registry", mock_reg)
+
+        s = Snapshotter()
+        result = s._capture_jpeg(self._make_info())
+
+        assert result is not None
+        running_cam.capture_file.assert_called_once()
+        mock_reg.acquire.assert_not_called()   # lock not touched when cam is live
 
 
 class TestSnapshotterBusSignal:
