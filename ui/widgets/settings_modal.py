@@ -2,7 +2,7 @@ import os
 
 from dotenv import set_key
 from PyQt5.QtCore import Qt
-from PyQt5.QtGui import QColor, QPainter
+from PyQt5.QtGui import QColor, QIntValidator, QPainter
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout,
     QLabel, QLineEdit, QPushButton, QScrollArea, QWidget,
@@ -128,6 +128,14 @@ class SettingsModal(QDialog):
         )
         adv_layout.addWidget(warning)
 
+        adv_layout.addWidget(self._field_label("Snapshot Interval (min, 0 = off)"))
+        self._snap_edit = QLineEdit(os.getenv("GKM_SNAPSHOT_INTERVAL_MIN", "0"))
+        self._snap_edit.setFixedHeight(44)
+        self._snap_edit.setStyleSheet(_INPUT)
+        self._snap_edit.setPlaceholderText("0")
+        self._snap_edit.setValidator(QIntValidator(0, 9999, self))
+        adv_layout.addWidget(self._snap_edit)
+
         self._adv_widget.hide()
         layout.addWidget(self._adv_widget)
         layout.addStretch()
@@ -211,6 +219,12 @@ class SettingsModal(QDialog):
             location or os.getenv("GKM_KIOSK_LOCATION", ""),
             kiosk_id or os.getenv("GKM_KIOSK_ID", ""),
         )
+
+        interval = max(0, int(self._snap_edit.text().strip() or "0"))
+        set_key(env, "GKM_SNAPSHOT_INTERVAL_MIN", str(interval))
+        os.environ["GKM_SNAPSHOT_INTERVAL_MIN"] = str(interval)
+        bus.snapshot_interval_changed.emit(interval)
+
         self.accept()
 
     def paintEvent(self, event):

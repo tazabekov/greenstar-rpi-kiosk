@@ -14,6 +14,7 @@ from core.bus import bus
 from core.models import Transaction, TransactionEvent
 from core.reporter import Reporter
 from core.sampler import DataSampler
+from core.snapshotter import Snapshotter
 from core.square import make_square_client
 from ui.theme import BG_DARK, GLOBAL_STYLESHEET
 from ui.header import HeaderWidget
@@ -140,6 +141,11 @@ class MainWindow(QWidget):
         bus.settings_changed.connect(self._reporter.on_settings_changed)
         self._reporter.start()
 
+        # Periodic camera snapshots — uploads to Firebase Storage if configured
+        self._snapshotter = Snapshotter(self)
+        bus.snapshot_interval_changed.connect(self._snapshotter.set_interval)
+        self._snapshotter.start()
+
         # Auto-selects SquareClient when SQUARE_ACCESS_TOKEN is in .env, else mock
         self._square = make_square_client(self)
 
@@ -173,6 +179,7 @@ class MainWindow(QWidget):
 
     def closeEvent(self, event):
         self._reporter.stop()
+        self._snapshotter.stop()
         self._sampler.stop()
         super().closeEvent(event)
 
