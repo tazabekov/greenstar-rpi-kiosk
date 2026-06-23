@@ -37,9 +37,10 @@ Square Payment Terminal
 | Processing screen with live event log + elapsed timer | ✅ Working |
 | X-axis time labels on graphs | ✅ Working |
 | Time-window selector (1 min/5 min/1 hr/24 hr) | ✅ Working |
-| Test suite (87 tests, pytest-qt) | ✅ Passing |
+| Test suite (105 tests, pytest-qt) | ✅ Passing |
 | GKM reporter (heartbeat + transaction sync) | ✅ Live — syncing to Firestore every 60 s |
-| Camera live view | ✅ OV5647 via CSI; conditional 📷 button in header |
+| Camera live view | ✅ OV5647 via CSI; conditional camera button in header |
+| Periodic camera snapshot → Firebase Storage | ✅ Configurable in Settings → Advanced |
 | MDB Pi Hat integration | ⏳ Hardware arriving ~2026-06-23 |
 | Square Web API integration | ⏳ Needs credentials (see below) |
 
@@ -55,6 +56,7 @@ greenstar-rpi-kiosk/
 │   ├── models.py               # Transaction + TransactionEvent dataclasses
 │   ├── sampler.py              # DataSampler — CPU % and temperature via psutil
 │   ├── reporter.py             # GKM Reporter — heartbeat + transaction sync to Firestore
+│   ├── snapshotter.py          # Snapshotter — periodic camera JPEG → Firebase Storage
 │   ├── square.py               # SquareMockClient (active) + SquareClient skeleton
 │   └── mdb.py                  # MDB Pi Hat stub (to be implemented)
 ├── ui/
@@ -69,13 +71,16 @@ greenstar-rpi-kiosk/
 │       ├── transaction_list.py # Painted transaction log — tap any row to see event log
 │       ├── payment_modal.py    # Touch-friendly payment dialog (keypad + FIAT/₿)
 │       ├── transaction_detail_modal.py  # Timestamped event log per transaction
-│       └── settings_modal.py   # Gear-button modal: Name, Location, Kiosk ID (with Advanced section)
+│       ├── settings_modal.py   # Gear-button modal: Name, Location, Kiosk ID, Snapshot Interval
+│       └── camera_modal.py     # Full-screen live camera view (OV5647)
 └── tests/
     ├── conftest.py             # Shared fixtures (qapp, DISPLAY env)
     ├── test_models.py          # Transaction + TransactionEvent (15 tests)
     ├── test_bus.py             # AppBus signal correctness (15 tests)
     ├── test_square_mock.py     # SquareMockClient event sequence (16 tests)
-    └── test_payment_modal.py   # Keypad, validation, type toggle (31 tests)
+    ├── test_payment_modal.py   # Keypad, validation, type toggle (31 tests)
+    ├── test_camera_modal.py    # CameraModal + header button (10 tests)
+    └── test_snapshotter.py     # Snapshotter + settings interval field (13 tests)
 ```
 
 ### Event Bus (`core/bus.py`)
@@ -89,6 +94,7 @@ All components communicate via `bus` (singleton `AppBus`):
 | `payment_requested` | `tx_id, amount, type` | PaymentModal | SquareMockClient / SquareClient |
 | `payment_result` | `tx_id, success, message` | SquareMockClient / SquareClient | PaymentModal, TransactionList, TransactionDetailModal |
 | `settings_changed` | `name, location, kiosk_id` | SettingsModal | Reporter (`on_settings_changed`) |
+| `snapshot_interval_changed` | `minutes` | SettingsModal | Snapshotter (`set_interval`) |
 
 ### Transaction Event Log
 
@@ -139,7 +145,7 @@ Press **Esc** to quit (development only).
 python3 -m pytest tests/ -v
 ```
 
-87 tests, 0 failures. Covers models, AppBus signals, Square mock event sequence, PaymentModal logic, and camera integration.
+105 tests, 0 failures. Covers models, AppBus signals, Square mock event sequence, PaymentModal logic, camera modal, and Snapshotter.
 
 ## Display Notes
 
@@ -205,6 +211,38 @@ During development, `SquareMockClient` in `main.py` simulates the full Square Te
 Square Terminal API does not natively support Bitcoin. Recommended path:
 - **Cash App Pay** — Square terminals can offer Cash App Pay as a payment method, which supports crypto (incl. BTC). Enable via `payment_options.crypto_enabled: true` in the checkout body (already in `SquareMockClient` and `SquareClient`).
 - Confirm with Square developer support whether your terminal hardware supports Cash App Pay before going live.
+
+## Camera Snapshot Upload (`core/snapshotter.py`)
+
+Every `GKM_SNAPSHOT_INTERVAL_MIN` minutes, the kiosk captures a JPEG from the OV5647 camera and uploads it to **Firebase Storage** at:
+
+```
+kiosks/{kiosk_id}/camera0/last-snapshot.jpg
+```
+
+The same path is overwritten each time (no accumulation). After a successful upload, the kiosk Firestore document is stamped with:
+
+```
+last_snapshot_path   — Storage path string
+last_snapshot_at     — Firestore SERVER_TIMESTAMP
+```
+
+The web dashboard resolves the Storage path to a download URL client-side using the Firebase JS SDK.
+
+**Configuration** (in `.env`):
+
+```
+GKM_FIREBASE_STORAGE_BUCKET=myproject.appspot.com   # omit gs://
+GKM_SNAPSHOT_INTERVAL_MIN=5                         # 0 = disabled
+```
+
+The interval can also be changed at runtime via **Settings → Advanced → Snapshot Interval** — no restart needed.
+
+If the Camera Modal is open when a snapshot is due, the snapshot is silently skipped and retried at the next interval (both use `Picamera2(0)` and cannot run concurrently).
+
+If `picamera2` is not installed, `firebase-admin` is missing, or the env vars are unset, `Snapshotter` logs a warning and no-ops.
+
+---
 
 ## GreenStar Kiosk Manager (GKM) Integration (`core/reporter.py`)
 
