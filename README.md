@@ -227,7 +227,7 @@ last_snapshot_path   — Storage path string
 last_snapshot_at     — Firestore SERVER_TIMESTAMP
 ```
 
-The web dashboard resolves the Storage path to a download URL client-side using the Firebase JS SDK.
+The web dashboard reads `last_snapshot_path` and `last_snapshot_at` from the kiosk Firestore document to show a "Cameras" section on the kiosk detail page. These fields are written by `Snapshotter` after each successful upload.
 
 **Configuration** (in `.env`):
 
