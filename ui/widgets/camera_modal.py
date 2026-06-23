@@ -1,6 +1,6 @@
 import numpy as np
 from PyQt5.QtCore import Qt, QTimer
-from PyQt5.QtGui import QImage, QPixmap
+from PyQt5.QtGui import QColor, QImage, QPainter, QPixmap
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout,
     QLabel, QPushButton, QWidget,
@@ -39,6 +39,7 @@ class CameraModal(QDialog):
             self.resize(parent.width(), parent.height())
             self.move(0, 0)
         self._cam = None
+        self._frame = None
         self._timer = QTimer(self)
         self._timer.setInterval(_FRAME_MS)
         self._timer.timeout.connect(self._grab_frame)
@@ -93,11 +94,17 @@ class CameraModal(QDialog):
         close_btn.clicked.connect(self.close)
         vbox.addWidget(close_btn)
 
+    def paintEvent(self, event):
+        painter = QPainter(self)
+        painter.fillRect(self.rect(), QColor(0, 0, 0, 180))
+
     def showEvent(self, event):
         super().showEvent(event)
         self._start_camera()
 
     def _start_camera(self):
+        if self._cam is not None:
+            return
         try:
             from picamera2 import Picamera2
             self._cam = Picamera2(0)
@@ -112,9 +119,9 @@ class CameraModal(QDialog):
 
     def _grab_frame(self):
         try:
-            frame = np.ascontiguousarray(self._cam.capture_array())
-            h, w = frame.shape[:2]
-            img = QImage(frame.data, w, h, w * 3, QImage.Format_RGB888)
+            self._frame = np.ascontiguousarray(self._cam.capture_array())
+            h, w = self._frame.shape[:2]
+            img = QImage(self._frame.data, w, h, w * 3, QImage.Format_RGB888)
             pix = QPixmap.fromImage(img).scaled(
                 self._view.width(), self._view.height(),
                 Qt.KeepAspectRatio, Qt.SmoothTransformation,

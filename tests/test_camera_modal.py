@@ -82,7 +82,6 @@ class TestHeaderCameraButton:
     def test_camera_button_inserted_before_gear(self, qtbot):
         header = HeaderWidget()
         qtbot.addWidget(header)
-        gear_idx = header.layout().indexOf(header._gear)
         header.show_camera_button()
         cam_btn = None
         for i in range(header.layout().count()):
