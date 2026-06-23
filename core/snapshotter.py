@@ -162,9 +162,16 @@ class Snapshotter(QObject):
             )
             cam.configure(cfg)
             cam.start()
-            # Wait for AE/AWB to converge — the first frame is always
-            # underexposed because the ISP hasn't yet measured the scene.
+            # Wait for AE/AWB to converge — first frames are underexposed
+            # and incorrectly white-balanced.
             time.sleep(2)
+            # Lock the converged AWB colour gains for the still so the
+            # colour balance matches the live preview.
+            meta = cam.capture_metadata()
+            colour_gains = meta.get("ColourGains")
+            if colour_gains:
+                cam.set_controls({"AwbEnable": False, "ColourGains": colour_gains})
+                time.sleep(0.1)  # let the locked gains take effect
             cam.capture_file(tmp_path)
             cam.stop()
             cam.close()
