@@ -1,7 +1,8 @@
 import threading
+import time
 
 import numpy as np
-from PyQt5.QtCore import Qt, QTimer, pyqtSignal
+from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QColor, QImage, QPainter, QPixmap
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout,
@@ -27,8 +28,8 @@ _X_STYLE = (
     " QPushButton:hover { color: #e8e8e8; }"
 )
 
-_FRAME_MS = 66              # ~15 fps
-_CAP_W, _CAP_H = 800, 600   # preview resolution — full 5 MP stalls libcamera
+_FRAME_INTERVAL = 1.0 / 15  # seconds between UI updates (~15 fps)
+_CAP_W, _CAP_H = 800, 600   # preview resolution
 
 
 class CameraModal(QDialog):
@@ -44,11 +45,8 @@ class CameraModal(QDialog):
             self.resize(parent.width(), parent.height())
             self.move(0, 0)
         self._cam = None
-        self._frame = None
-        self._capturing = False
-        self._timer = QTimer(self)
-        self._timer.setInterval(_FRAME_MS)
-        self._timer.timeout.connect(self._grab_frame)
+        self._running = False
+        self._last_frame_time = 0.0
         self._frame_ready.connect(self._show_frame)
         self._feed_error.connect(self._feed_lost)
         self._build_ui()
@@ -116,40 +114,35 @@ class CameraModal(QDialog):
             from picamera2 import Picamera2
             self._cam = Picamera2(0)
             cfg = self._cam.create_preview_configuration(
-                main={"size": (_CAP_W, _CAP_H), "format": "RGB888"}
+                main={"size": (_CAP_W, _CAP_H), "format": "RGB888"},
             )
             self._cam.configure(cfg)
+            self._cam.post_callback = self._on_frame
+            self._running = True
             self._cam.start()
-            self._timer.start()
         except Exception as exc:
             self._status.setText(f"Camera error: {exc}")
 
-    def _grab_frame(self):
-        """Timer callback (main thread): spawn a capture thread if none running."""
-        if self._capturing or self._cam is None:
+    def _on_frame(self, request):
+        """picamera2 internal thread: throttle to ~15 fps, emit frame signal."""
+        if not self._running:
             return
-        self._capturing = True
-        threading.Thread(target=self._capture_worker, daemon=True).start()
-
-    def _capture_worker(self):
-        """Background thread: capture one frame, emit signal to main thread."""
-        cam = self._cam
+        now = time.monotonic()
+        if now - self._last_frame_time < _FRAME_INTERVAL:
+            return
+        self._last_frame_time = now
         try:
-            if cam is None:
-                return
-            # picamera2 "RGB888" delivers bytes in BGR order; flip to RGB
-            raw = cam.capture_array()[:, :, ::-1]
-            frame = np.ascontiguousarray(raw)
+            arr = request.make_array("main")
+            # "RGB888" delivers BGR order; np.ascontiguousarray also copies the data
+            frame = np.ascontiguousarray(arr[:, :, ::-1])
             self._frame_ready.emit(frame)
         except Exception as exc:
             self._feed_error.emit(str(exc))
-        finally:
-            self._capturing = False
 
     def _show_frame(self, frame):
-        """Main-thread: render a captured frame into the view label."""
-        if not self._timer.isActive():
-            return  # modal closed while frame was in flight
+        """Main thread: render a captured frame into the view label."""
+        if not self._running:
+            return
         h, w = frame.shape[:2]
         img = QImage(frame.data, w, h, w * 3, QImage.Format_RGB888)
         pix = QPixmap.fromImage(img).scaled(
@@ -159,16 +152,20 @@ class CameraModal(QDialog):
         self._view.setPixmap(pix)
 
     def _feed_lost(self, msg: str):
-        """Main-thread: stop the timer and show an error."""
-        self._timer.stop()
+        """Main thread: show error."""
+        self._running = False
         self._status.setText(f"Feed lost: {msg}")
 
     def closeEvent(self, event):
-        self._timer.stop()
+        self._running = False
         cam, self._cam = self._cam, None
         if cam is not None:
-            # Stop/close in a thread — cam.stop() can block if capture_array()
-            # is mid-call, which would freeze the main thread and lock the UI.
+            try:
+                cam.post_callback = None  # stop callbacks before tearing down
+            except Exception:
+                pass
+            # cam.stop()/close() can block if libcamera is mid-frame; run in a
+            # daemon thread so closeEvent always returns immediately.
             threading.Thread(target=self._stop_camera, args=(cam,), daemon=True).start()
         super().closeEvent(event)
 

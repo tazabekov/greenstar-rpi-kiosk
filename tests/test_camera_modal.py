@@ -29,22 +29,22 @@ class TestCameraModal:
         assert str(_CAP_W) in modal._status.text()
         assert str(_CAP_H) in modal._status.text()
 
-    def test_timer_not_active_before_show(self, qtbot):
+    def test_not_running_before_show(self, qtbot):
         modal = CameraModal(parent=None)
         qtbot.addWidget(modal)
-        assert not modal._timer.isActive()
+        assert not modal._running
 
     def test_cam_none_before_show(self, qtbot):
         modal = CameraModal(parent=None)
         qtbot.addWidget(modal)
         assert modal._cam is None
 
-    def test_close_stops_timer(self, qtbot):
+    def test_close_stops_running(self, qtbot):
         modal = CameraModal(parent=None)
         qtbot.addWidget(modal)
-        modal._timer.start()
+        modal._running = True
         modal.close()
-        assert not modal._timer.isActive()
+        assert not modal._running
 
     def test_cam_none_after_close(self, qtbot):
         modal = CameraModal(parent=None)
