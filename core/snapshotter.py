@@ -157,7 +157,7 @@ class Snapshotter(QObject):
             from picamera2 import Picamera2
             cam = Picamera2(0)
             cfg = cam.create_still_configuration(
-                main={"size": (1920, 1080), "format": "RGB888"}
+                main={"size": (2592, 1944), "format": "RGB888"}
             )
             cam.configure(cfg)
             cam.start()
