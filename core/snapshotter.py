@@ -16,9 +16,16 @@ After a successful upload, updates the kiosk Firestore document with:
   ... (one field per camera)
   last_snapshot_at             — server timestamp
 
-If a camera is already in use (e.g. CameraModal is open), that camera's
-snapshot is silently skipped and retried at the next scheduled interval.
-Uses core/camera_registry.py per-camera locks to prevent concurrent access.
+Capture strategy per camera:
+  - CameraModal open (live feed running): calls capture_file() on the already-running
+    Picamera2 instance via registry.get_running_cam(idx). No lock needed; AE/AWB is
+    already converged so the 2-second warmup sleep is skipped.
+  - CameraModal closed (camera idle): acquires the per-camera lock, opens its own
+    Picamera2 instance, waits 2 s for AE/AWB, captures, closes, releases the lock.
+
+Uses core/camera_registry.py per-camera locks to prevent two independent Picamera2
+instances from opening the same camera simultaneously (concurrent opens corrupt
+picamera2's global listener thread).
 
 Requires in .env:
   GKM_FIREBASE_STORAGE_BUCKET   e.g. myproject.appspot.com

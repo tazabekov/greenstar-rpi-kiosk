@@ -56,15 +56,17 @@ Escape key quits (dev only). The autostart `.desktop` file launches it on boot.
 core/bus.py          AppBus signals (source of truth for inter-component API)
 core/models.py       Transaction + TransactionEvent dataclasses
 core/sampler.py      DataSampler — CPU% and temperature via psutil
-core/snapshotter.py  Snapshotter — periodic camera JPEG → Firebase Storage upload
-core/square.py       SquareMockClient (active) + SquareClient skeleton
-core/mdb.py          MDB Pi Hat stub — implement when hardware arrives (~2026-06-23)
-ui/theme.py          Colours, button stylesheets, WINDOWS
-ui/header.py         HeaderWidget — star, logo, tab nav, clock
-ui/screens/          dashboard.py · system.py
-ui/widgets/          graph.py · system_mini.py · transaction_list.py
-                     payment_modal.py · transaction_detail_modal.py
-                     settings_modal.py · camera_modal.py
+core/snapshotter.py      Snapshotter — periodic camera JPEG → Firebase Storage (all cameras)
+core/camera_registry.py  CameraRegistry — discovers cameras at startup, per-camera locks,
+                         running-cam ref so Snapshotter can capture from live feed directly
+core/square.py           SquareMockClient (active) + SquareClient skeleton
+core/mdb.py              MDB Pi Hat stub — implement when hardware arrives (~2026-06-23)
+ui/theme.py              Colours, button stylesheets, WINDOWS
+ui/header.py             HeaderWidget — star, logo, tab nav, clock
+ui/screens/              dashboard.py · system.py
+ui/widgets/              graph.py · system_mini.py · transaction_list.py
+                         payment_modal.py · transaction_detail_modal.py
+                         settings_modal.py · camera_modal.py
 tests/               pytest + pytest-qt — all passing
 .env.example         template — copy to .env and fill in values (gitignored)
 ```
