@@ -28,7 +28,7 @@ _X_STYLE = (
 )
 
 _FRAME_MS = 66              # ~15 fps
-_CAP_W, _CAP_H = 2592, 1944  # OV5647 full sensor resolution
+_CAP_W, _CAP_H = 800, 600   # preview resolution — full 5 MP stalls libcamera
 
 
 class CameraModal(QDialog):
@@ -165,11 +165,17 @@ class CameraModal(QDialog):
 
     def closeEvent(self, event):
         self._timer.stop()
-        if self._cam is not None:
-            try:
-                self._cam.stop()
-                self._cam.close()
-            except Exception:
-                pass
-            self._cam = None
+        cam, self._cam = self._cam, None
+        if cam is not None:
+            # Stop/close in a thread — cam.stop() can block if capture_array()
+            # is mid-call, which would freeze the main thread and lock the UI.
+            threading.Thread(target=self._stop_camera, args=(cam,), daemon=True).start()
         super().closeEvent(event)
+
+    @staticmethod
+    def _stop_camera(cam):
+        try:
+            cam.stop()
+            cam.close()
+        except Exception:
+            pass

@@ -23,10 +23,11 @@ class TestCameraModal:
         assert isinstance(modal._view, QLabel)
 
     def test_status_shows_resolution(self, qtbot):
+        from ui.widgets.camera_modal import _CAP_W, _CAP_H
         modal = CameraModal(parent=None)
         qtbot.addWidget(modal)
-        assert "2592" in modal._status.text()
-        assert "1944" in modal._status.text()
+        assert str(_CAP_W) in modal._status.text()
+        assert str(_CAP_H) in modal._status.text()
 
     def test_timer_not_active_before_show(self, qtbot):
         modal = CameraModal(parent=None)
