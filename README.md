@@ -227,7 +227,7 @@ last_snapshot_path   — Storage path string
 last_snapshot_at     — Firestore SERVER_TIMESTAMP
 ```
 
-The web dashboard reads `last_snapshot_path` and `last_snapshot_at` from the kiosk Firestore document to show a "Cameras" section on the kiosk detail page. These fields are written by `Snapshotter` after each successful upload.
+The web dashboard reads `last_snapshot_path` and `last_snapshot_at` from the kiosk Firestore document to show a **Camera** row inside the Kiosk Health card on the kiosk detail page (time-ago format, "View" link opens the full snapshot modal). These fields are written by `Snapshotter` after each successful upload.
 
 **Configuration** (in `.env`):
 
