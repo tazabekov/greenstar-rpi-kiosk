@@ -161,8 +161,12 @@ class TestSnapshotterSchedule:
 
 
 class TestSnapshotterCaptureJpeg:
+    def _make_info(self, idx=0):
+        from core.camera_registry import CameraInfo
+        return CameraInfo(idx=idx, model="ov5647", max_w=2592, max_h=1944)
+
     def test_capture_returns_none_when_picamera2_unavailable(self, qtbot, monkeypatch):
-        """Inject a broken picamera2 stub — _capture_jpeg must return None."""
+        """_capture_jpeg returns None when picamera2 raises on construction."""
         broken = types.ModuleType("picamera2")
 
         class _BrokenCam:
@@ -172,12 +176,17 @@ class TestSnapshotterCaptureJpeg:
         broken.Picamera2 = _BrokenCam
         monkeypatch.setitem(sys.modules, "picamera2", broken)
 
+        import core.camera_registry as _reg_mod
+        mock_reg = mock.MagicMock()
+        mock_reg.acquire.return_value = True
+        monkeypatch.setattr(_reg_mod, "registry", mock_reg)
+
         s = Snapshotter()
-        result = s._capture_jpeg()
+        result = s._capture_jpeg(self._make_info())
         assert result is None
 
     def test_capture_cleans_up_temp_file_on_error(self, qtbot, monkeypatch, tmp_path):
-        """Temp file must be deleted even when capture raises."""
+        """Temp file is deleted even when capture raises."""
         created = []
 
         def _mkstemp(suffix=""):
@@ -199,11 +208,27 @@ class TestSnapshotterCaptureJpeg:
         broken.Picamera2 = _BrokenCam
         monkeypatch.setitem(sys.modules, "picamera2", broken)
 
+        import core.camera_registry as _reg_mod
+        mock_reg = mock.MagicMock()
+        mock_reg.acquire.return_value = True
+        monkeypatch.setattr(_reg_mod, "registry", mock_reg)
+
         s = Snapshotter()
-        result = s._capture_jpeg()
+        result = s._capture_jpeg(self._make_info())
         assert result is None
         for p in created:
             assert not os.path.exists(p), "temp file was not cleaned up"
+
+    def test_capture_skips_when_camera_locked(self, qtbot, monkeypatch):
+        """_capture_jpeg returns None immediately when registry.acquire returns False."""
+        import core.camera_registry as _reg_mod
+        mock_reg = mock.MagicMock()
+        mock_reg.acquire.return_value = False
+        monkeypatch.setattr(_reg_mod, "registry", mock_reg)
+
+        s = Snapshotter()
+        result = s._capture_jpeg(self._make_info())
+        assert result is None
 
 
 class TestSnapshotterBusSignal:

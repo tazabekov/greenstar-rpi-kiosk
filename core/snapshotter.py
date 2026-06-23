@@ -118,66 +118,104 @@ class Snapshotter(QObject):
         t.start()
 
     def _do_snapshot(self):
-        tmp_path = self._capture_jpeg()
-        if tmp_path is None:
-            # Camera was busy or errored — skip this interval
+        from core.camera_registry import registry
+        cameras = registry.cameras()
+
+        if not cameras:
             with self._lock:
                 self._thread_running = False
             QTimer.singleShot(0, self._schedule)
             return
+
+        results: dict[int, str | None] = {}
+        results_lock = threading.Lock()
+
+        def _capture_one(info):
+            path = self._capture_and_upload(info)
+            with results_lock:
+                results[info.idx] = path
+
+        threads = [
+            threading.Thread(target=_capture_one, args=(info,), daemon=True)
+            for info in cameras
+        ]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+
+        captured = {idx: path for idx, path in results.items() if path is not None}
+        if not captured:
+            with self._lock:
+                self._thread_running = False
+            QTimer.singleShot(0, self._schedule)
+            return
+
         try:
-            path = f"kiosks/{self._kiosk_id}/camera0/last-snapshot.jpg"
-            bucket = fb_storage.bucket(self._bucket_name)
-            blob = bucket.blob(path)
-            blob.upload_from_filename(tmp_path, content_type="image/jpeg")
-            log.info("Snapshotter: uploaded snapshot to %s", path)
-            self._kiosk_ref.update({
-                "last_snapshot_path": path,
-                "last_snapshot_at":   fb_firestore.SERVER_TIMESTAMP,
-            })
+            updates: dict = {"last_snapshot_at": fb_firestore.SERVER_TIMESTAMP}
+            for idx, storage_path in sorted(captured.items()):
+                if idx == 0:
+                    updates["last_snapshot_path"] = storage_path
+                else:
+                    updates[f"last_snapshot_path_camera{idx}"] = storage_path
+            self._kiosk_ref.update(updates)
         except Exception:
-            log.exception("Snapshotter: upload/Firestore update failed — will retry next interval")
+            log.exception("Snapshotter: Firestore update failed — will retry next interval")
+        finally:
+            with self._lock:
+                self._thread_running = False
+            QTimer.singleShot(0, self._schedule)
+
+    def _capture_and_upload(self, info) -> str | None:
+        """Capture JPEG from one camera and upload to Storage. Returns Storage path or None."""
+        tmp_path = self._capture_jpeg(info)
+        if tmp_path is None:
+            return None
+        storage_path = f"kiosks/{self._kiosk_id}/camera{info.idx}/last-snapshot.jpg"
+        try:
+            bucket = fb_storage.bucket(self._bucket_name)
+            blob = bucket.blob(storage_path)
+            blob.upload_from_filename(tmp_path, content_type="image/jpeg")
+            log.info("Snapshotter: uploaded %s", storage_path)
+            return storage_path
+        except Exception:
+            log.exception("Snapshotter: upload of camera%d failed", info.idx)
+            return None
         finally:
             try:
                 os.unlink(tmp_path)
             except OSError:
                 pass
-            with self._lock:
-                self._thread_running = False
-            QTimer.singleShot(0, self._schedule)
 
-    def _capture_jpeg(self) -> str | None:
-        """Capture one still frame and save to a temp JPEG. Returns path or None."""
-        from core.camera_lock import camera_lock
-        if not camera_lock.acquire(blocking=False):
-            log.info("Snapshotter: camera in use (CameraModal open) — skipping")
+    def _capture_jpeg(self, info) -> str | None:
+        """Capture one still frame from info.idx and save to a temp JPEG. Returns path or None."""
+        from core.camera_registry import registry
+        if not registry.acquire(info.idx, blocking=False):
+            log.info("Snapshotter: camera %d in use (CameraModal open) — skipping", info.idx)
             return None
         fd, tmp_path = tempfile.mkstemp(suffix=".jpg")
         os.close(fd)
         try:
             from picamera2 import Picamera2
-            cam = Picamera2(0)
-            # Use the same ISP pipeline as the live preview so colours match.
-            # create_still_configuration applies a different colour correction
-            # matrix that produces a yellow cast relative to the preview feed.
+            cam = Picamera2(info.idx)
             cfg = cam.create_preview_configuration(
-                main={"size": (2592, 1944), "format": "RGB888"}
+                main={"size": (info.max_w, info.max_h), "format": "RGB888"}
             )
             cam.configure(cfg)
             cam.start()
-            # Wait for AE/AWB to converge — first frames are underexposed
-            # and incorrectly white-balanced.
             time.sleep(2)
             cam.capture_file(tmp_path)
             cam.stop()
             cam.close()
             return tmp_path
         except Exception as exc:
-            log.warning("Snapshotter: camera capture failed (%s) — skipping", exc)
+            log.warning(
+                "Snapshotter: camera %d capture failed (%s) — skipping", info.idx, exc
+            )
             try:
                 os.unlink(tmp_path)
             except OSError:
                 pass
             return None
         finally:
-            camera_lock.release()
+            registry.release(info.idx)
