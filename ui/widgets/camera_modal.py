@@ -1,7 +1,7 @@
 import threading
 
 import numpy as np
-from PyQt5.QtCore import Qt, QTimer
+from PyQt5.QtCore import Qt, QTimer, pyqtSignal
 from PyQt5.QtGui import QColor, QImage, QPainter, QPixmap
 from PyQt5.QtWidgets import (
     QDialog, QVBoxLayout, QHBoxLayout,
@@ -32,6 +32,9 @@ _CAP_W, _CAP_H = 2592, 1944  # OV5647 full sensor resolution
 
 
 class CameraModal(QDialog):
+    _frame_ready = pyqtSignal(object)  # numpy array, delivered on main thread
+    _feed_error  = pyqtSignal(str)
+
     def __init__(self, parent=None):
         super().__init__(parent)
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.Dialog)
@@ -46,6 +49,8 @@ class CameraModal(QDialog):
         self._timer = QTimer(self)
         self._timer.setInterval(_FRAME_MS)
         self._timer.timeout.connect(self._grab_frame)
+        self._frame_ready.connect(self._show_frame)
+        self._feed_error.connect(self._feed_lost)
         self._build_ui()
 
     def _build_ui(self):
@@ -127,7 +132,7 @@ class CameraModal(QDialog):
         threading.Thread(target=self._capture_worker, daemon=True).start()
 
     def _capture_worker(self):
-        """Background thread: capture one frame, then schedule a UI update."""
+        """Background thread: capture one frame, emit signal to main thread."""
         cam = self._cam
         try:
             if cam is None:
@@ -135,10 +140,9 @@ class CameraModal(QDialog):
             # picamera2 "RGB888" delivers bytes in BGR order; flip to RGB
             raw = cam.capture_array()[:, :, ::-1]
             frame = np.ascontiguousarray(raw)
-            QTimer.singleShot(0, lambda: self._show_frame(frame))
+            self._frame_ready.emit(frame)
         except Exception as exc:
-            msg = str(exc)
-            QTimer.singleShot(0, lambda: self._feed_lost(msg))
+            self._feed_error.emit(str(exc))
         finally:
             self._capturing = False
 
