@@ -39,6 +39,7 @@ Square Payment Terminal
 | Time-window selector (1 min/5 min/1 hr/24 hr) | ✅ Working |
 | Test suite (77 tests, pytest-qt) | ✅ Passing |
 | GKM reporter (heartbeat + transaction sync) | ✅ Live — syncing to Firestore every 60 s |
+| Camera live view | ✅ OV5647 via CSI; conditional 📷 button in header |
 | MDB Pi Hat integration | ⏳ Hardware arriving ~2026-06-23 |
 | Square Web API integration | ⏳ Needs credentials (see below) |
 

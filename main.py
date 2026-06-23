@@ -21,6 +21,12 @@ from ui.screens.dashboard import DashboardScreen
 from ui.screens.system import SystemScreen
 from ui.widgets.settings_modal import SettingsModal
 
+try:
+    from picamera2 import Picamera2 as _Picamera2
+    _CAMERAS = _Picamera2.global_camera_info()
+except Exception:
+    _CAMERAS = []
+
 
 def _make_sample_events(base_time, payment_type, amount, checkout_id):
     """Pre-baked event log for sample transactions shown on startup."""
@@ -107,6 +113,9 @@ class MainWindow(QWidget):
         self._header = HeaderWidget()
         self._header.tab_changed.connect(self._switch_screen)
         self._header.settings_requested.connect(self._open_settings)
+        if _CAMERAS:
+            self._header.show_camera_button()
+            self._header.cameras_requested.connect(self._open_camera_modal)
         root.addWidget(self._header)
 
         self._stack     = QStackedWidget()
@@ -157,6 +166,10 @@ class MainWindow(QWidget):
 
     def _open_settings(self):
         SettingsModal(self).exec_()
+
+    def _open_camera_modal(self):
+        from ui.widgets.camera_modal import CameraModal
+        CameraModal(self).exec_()
 
     def closeEvent(self, event):
         self._reporter.stop()
