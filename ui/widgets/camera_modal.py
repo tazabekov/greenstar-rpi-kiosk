@@ -152,6 +152,7 @@ class CameraModal(QDialog):
         def _on_feed_lost(self, msg: str):
             log.error("camera %d feed lost: %s", self._info.idx, msg)
             self._running = False
+            self.stop()
             self._status.setText(f"Feed lost: {msg}")
 
     # ------------------------------------------------------------------
