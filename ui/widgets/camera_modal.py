@@ -1,3 +1,5 @@
+import threading
+
 import numpy as np
 from PyQt5.QtCore import Qt, QTimer
 from PyQt5.QtGui import QColor, QImage, QPainter, QPixmap
@@ -40,6 +42,7 @@ class CameraModal(QDialog):
             self.move(0, 0)
         self._cam = None
         self._frame = None
+        self._capturing = False
         self._timer = QTimer(self)
         self._timer.setInterval(_FRAME_MS)
         self._timer.timeout.connect(self._grab_frame)
@@ -117,21 +120,44 @@ class CameraModal(QDialog):
             self._status.setText(f"Camera error: {exc}")
 
     def _grab_frame(self):
+        """Timer callback (main thread): spawn a capture thread if none running."""
+        if self._capturing or self._cam is None:
+            return
+        self._capturing = True
+        threading.Thread(target=self._capture_worker, daemon=True).start()
+
+    def _capture_worker(self):
+        """Background thread: capture one frame, then schedule a UI update."""
+        cam = self._cam
         try:
+            if cam is None:
+                return
             # picamera2 "RGB888" delivers bytes in BGR order; flip to RGB
-            self._frame = np.ascontiguousarray(
-                self._cam.capture_array()[:, :, ::-1]
-            )
-            h, w = self._frame.shape[:2]
-            img = QImage(self._frame.data, w, h, w * 3, QImage.Format_RGB888)
-            pix = QPixmap.fromImage(img).scaled(
-                self._view.width(), self._view.height(),
-                Qt.KeepAspectRatio, Qt.SmoothTransformation,
-            )
-            self._view.setPixmap(pix)
+            raw = cam.capture_array()[:, :, ::-1]
+            frame = np.ascontiguousarray(raw)
+            QTimer.singleShot(0, lambda: self._show_frame(frame))
         except Exception as exc:
-            self._timer.stop()
-            self._status.setText(f"Feed lost: {exc}")
+            msg = str(exc)
+            QTimer.singleShot(0, lambda: self._feed_lost(msg))
+        finally:
+            self._capturing = False
+
+    def _show_frame(self, frame):
+        """Main-thread: render a captured frame into the view label."""
+        if not self._timer.isActive():
+            return  # modal closed while frame was in flight
+        h, w = frame.shape[:2]
+        img = QImage(frame.data, w, h, w * 3, QImage.Format_RGB888)
+        pix = QPixmap.fromImage(img).scaled(
+            self._view.width(), self._view.height(),
+            Qt.KeepAspectRatio, Qt.SmoothTransformation,
+        )
+        self._view.setPixmap(pix)
+
+    def _feed_lost(self, msg: str):
+        """Main-thread: stop the timer and show an error."""
+        self._timer.stop()
+        self._status.setText(f"Feed lost: {msg}")
 
     def closeEvent(self, event):
         self._timer.stop()
