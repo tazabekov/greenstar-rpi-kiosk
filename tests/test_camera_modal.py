@@ -48,6 +48,5 @@ class TestCameraModal:
         modal = CameraModal(parent=None)
         qtbot.addWidget(modal)
         modal._cam = object()  # simulate an open camera handle
-        modal._cam = None      # close sets it to None
         modal.close()
         assert modal._cam is None

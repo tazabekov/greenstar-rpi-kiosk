@@ -53,7 +53,7 @@ class CameraModal(QDialog):
             "background-color: #0d0d0d;"
             " border: 2px solid #1a5c08; border-radius: 10px;"
         )
-        card.setFixedSize(700, 580)
+        card.setFixedSize(700, 400)
         outer.addWidget(card, alignment=Qt.AlignCenter)
 
         vbox = QVBoxLayout(card)
@@ -67,7 +67,7 @@ class CameraModal(QDialog):
         title_row.addWidget(title)
         title_row.addStretch()
         x_btn = QPushButton("✕")
-        x_btn.setFixedSize(32, 32)
+        x_btn.setFixedSize(44, 44)
         x_btn.setStyleSheet(_X_STYLE)
         x_btn.clicked.connect(self.close)
         title_row.addWidget(x_btn)
@@ -76,7 +76,7 @@ class CameraModal(QDialog):
         # Video view
         self._view = QLabel()
         self._view.setAlignment(Qt.AlignCenter)
-        self._view.setMinimumSize(_W, _H)
+        self._view.setMinimumHeight(200)
         self._view.setStyleSheet(_VIEW_STYLE)
         vbox.addWidget(self._view, stretch=1)
 
