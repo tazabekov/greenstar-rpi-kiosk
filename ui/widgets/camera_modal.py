@@ -119,7 +119,10 @@ class CameraModal(QDialog):
 
     def _grab_frame(self):
         try:
-            self._frame = np.ascontiguousarray(self._cam.capture_array())
+            # picamera2 "RGB888" delivers bytes in BGR order; flip to RGB
+            self._frame = np.ascontiguousarray(
+                self._cam.capture_array()[:, :, ::-1]
+            )
             h, w = self._frame.shape[:2]
             img = QImage(self._frame.data, w, h, w * 3, QImage.Format_RGB888)
             pix = QPixmap.fromImage(img).scaled(
