@@ -121,6 +121,7 @@ class MainWindow(QWidget):
         self._header = HeaderWidget()
         self._header.tab_changed.connect(self._switch_screen)
         self._header.settings_requested.connect(self._open_settings)
+        self._header.quit_requested.connect(self._confirm_quit)
         if _CAMERAS:
             self._header.show_camera_button()
             self._header.cameras_requested.connect(self._open_camera_modal)
@@ -176,6 +177,11 @@ class MainWindow(QWidget):
     def _switch_screen(self, key):
         idx = SCREEN_KEYS.index(key) if key in SCREEN_KEYS else 0
         self._stack.setCurrentIndex(idx)
+
+    def _confirm_quit(self):
+        from ui.widgets.quit_modal import QuitModal
+        if QuitModal(self).exec_() == QuitModal.Accepted:
+            QApplication.quit()
 
     def _open_settings(self):
         SettingsModal(self).exec_()

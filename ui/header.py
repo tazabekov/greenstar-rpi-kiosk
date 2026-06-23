@@ -87,6 +87,7 @@ class HeaderWidget(QWidget):
     tab_changed        = pyqtSignal(str)   # "dashboard" | "system"
     settings_requested = pyqtSignal()
     cameras_requested  = pyqtSignal()
+    quit_requested     = pyqtSignal()
 
     TABS = [("dashboard", "Dashboard"), ("system", "System")]
 
@@ -141,6 +142,19 @@ class HeaderWidget(QWidget):
         timer.timeout.connect(self._tick)
         timer.start(1000)
         self._tick()
+
+        layout.addSpacing(8)
+
+        self._quit_btn = QPushButton("✕")
+        self._quit_btn.setFixedSize(44, 44)
+        self._quit_btn.setStyleSheet(
+            "QPushButton { background-color: transparent; color: #555555;"
+            " border: none; font-size: 16pt; }"
+            " QPushButton:hover { color: #cc3333; }"
+            " QPushButton:pressed { color: #ff4444; }"
+        )
+        self._quit_btn.clicked.connect(self.quit_requested)
+        layout.addWidget(self._quit_btn)
 
         self._refresh_tabs()
 
