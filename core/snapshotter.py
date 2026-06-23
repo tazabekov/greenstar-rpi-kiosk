@@ -147,6 +147,10 @@ class Snapshotter(QObject):
 
     def _capture_jpeg(self) -> str | None:
         """Capture one still frame and save to a temp JPEG. Returns path or None."""
+        from core.camera_lock import camera_lock
+        if not camera_lock.acquire(blocking=False):
+            log.info("Snapshotter: camera in use (CameraModal open) — skipping")
+            return None
         fd, tmp_path = tempfile.mkstemp(suffix=".jpg")
         os.close(fd)
         try:
@@ -168,3 +172,5 @@ class Snapshotter(QObject):
             except OSError:
                 pass
             return None
+        finally:
+            camera_lock.release()

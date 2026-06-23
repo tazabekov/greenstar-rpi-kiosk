@@ -1,7 +1,10 @@
+import logging
 import threading
 import time
 
 import numpy as np
+
+log = logging.getLogger(__name__)
 from PyQt5.QtCore import Qt, pyqtSignal
 from PyQt5.QtGui import QColor, QImage, QPainter, QPixmap
 from PyQt5.QtWidgets import (
@@ -111,6 +114,10 @@ class CameraModal(QDialog):
     def _start_camera(self):
         if self._cam is not None:
             return
+        from core.camera_lock import camera_lock
+        if not camera_lock.acquire(blocking=False):
+            self._status.setText("Camera busy — try again shortly")
+            return
         try:
             from picamera2 import Picamera2
             self._cam = Picamera2(0)
@@ -121,7 +128,10 @@ class CameraModal(QDialog):
             self._cam.post_callback = self._on_frame
             self._running = True
             self._cam.start()
+            log.info("camera started %dx%d", _CAP_W, _CAP_H)
         except Exception as exc:
+            log.exception("camera start failed")
+            camera_lock.release()
             self._status.setText(f"Camera error: {exc}")
 
     def _on_frame(self, request):
@@ -143,10 +153,13 @@ class CameraModal(QDialog):
             vw, vh = self._view.width(), self._view.height()
             if vw > 0 and vh > 0:
                 img = img.scaled(vw, vh, Qt.KeepAspectRatio, Qt.FastTransformation)
+            if self._consecutive_errors > 0:
+                log.info("frame ok after %d error(s)", self._consecutive_errors)
             self._consecutive_errors = 0
             self._frame_ready.emit(img)
         except Exception as exc:
             self._consecutive_errors += 1
+            log.warning("frame error #%d: %s", self._consecutive_errors, exc)
             if self._consecutive_errors >= 5:
                 self._feed_error.emit(str(exc))
 
@@ -158,10 +171,12 @@ class CameraModal(QDialog):
 
     def _feed_lost(self, msg: str):
         """Main thread: show error after 5 consecutive failures."""
+        log.error("feed lost: %s", msg)
         self._running = False
         self._status.setText(f"Feed lost: {msg}")
 
     def closeEvent(self, event):
+        log.info("closing camera modal")
         self._running = False
         cam, self._cam = self._cam, None
         if cam is not None:
@@ -181,3 +196,9 @@ class CameraModal(QDialog):
             cam.close()
         except Exception:
             pass
+        finally:
+            from core.camera_lock import camera_lock
+            try:
+                camera_lock.release()
+            except RuntimeError:
+                pass  # wasn't locked (camera never fully started)

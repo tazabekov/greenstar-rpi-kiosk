@@ -1,6 +1,13 @@
+import logging
 import os
 import sys
 from datetime import datetime, timedelta
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s %(name)s %(levelname)s %(message)s",
+    stream=sys.stderr,
+)
 
 from dotenv import load_dotenv
 load_dotenv(os.path.join(os.path.dirname(__file__), ".env"))
