@@ -1,10 +1,14 @@
+import subprocess
 import psutil
 from PyQt5.QtCore import QObject, QTimer, pyqtSignal
 
 
 class DataSampler(QObject):
-    cpu_sample  = pyqtSignal(float)
-    temp_sample = pyqtSignal(float)
+    cpu_sample      = pyqtSignal(float)
+    temp_sample     = pyqtSignal(float)
+    fan_sample      = pyqtSignal(int)
+    disk_sample     = pyqtSignal(float)
+    throttle_sample = pyqtSignal(int)
 
     def __init__(self):
         super().__init__()
@@ -30,5 +34,32 @@ class DataSampler(QObject):
                     temp = int(f.read()) / 1000.0
             except OSError:
                 temp = 0.0
+
         self.cpu_sample.emit(cpu)
         self.temp_sample.emit(temp)
+        self.fan_sample.emit(self._read_fan())
+        self.disk_sample.emit(self._read_disk())
+        self.throttle_sample.emit(self._read_throttle())
+
+    def _read_fan(self):
+        try:
+            with open('/sys/class/thermal/cooling_device0/cur_state') as f:
+                return int(f.read().strip())
+        except (OSError, ValueError):
+            return -1
+
+    def _read_disk(self):
+        try:
+            return psutil.disk_usage('/').percent
+        except OSError:
+            return 0.0
+
+    def _read_throttle(self):
+        try:
+            result = subprocess.run(
+                ['vcgencmd', 'get_throttled'],
+                capture_output=True, timeout=1,
+            )
+            return int(result.stdout.decode().split('=')[1].strip(), 16)
+        except Exception:
+            return 0
