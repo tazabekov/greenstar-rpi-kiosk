@@ -38,9 +38,10 @@ class CameraModal(QDialog):
         _frame_ready = pyqtSignal(object)
         _feed_error  = pyqtSignal(str)
 
-        def __init__(self, info, parent=None):
+        def __init__(self, info, parent=None, fill=False):
             super().__init__(parent)
             self._info = info
+            self._fill = fill
             self._cam = None
             self._running = False
             self._last_frame_time = 0.0
@@ -134,7 +135,13 @@ class CameraModal(QDialog):
                 img = QImage(arr.data, w, h, arr.strides[0], QImage.Format_BGR888).copy()
                 vw, vh = self._view.width(), self._view.height()
                 if vw > 0 and vh > 0:
-                    img = img.scaled(vw, vh, Qt.KeepAspectRatio, Qt.SmoothTransformation)
+                    if self._fill:
+                        scaled = img.scaled(vw, vh, Qt.KeepAspectRatioByExpanding, Qt.SmoothTransformation)
+                        x = (scaled.width() - vw) // 2
+                        y = max(0, scaled.height() - vh)  # crop from top, show bottom
+                        img = scaled.copy(x, y, vw, vh)
+                    else:
+                        img = img.scaled(vw, vh, Qt.KeepAspectRatio, Qt.SmoothTransformation)
                 if self._consecutive_errors > 0:
                     log.info("camera %d ok after %d error(s)", self._info.idx, self._consecutive_errors)
                 self._consecutive_errors = 0
@@ -208,7 +215,7 @@ class CameraModal(QDialog):
             no_cam.setStyleSheet("color: #555555; font-size: 11pt; border: none;")
             vbox.addWidget(no_cam, stretch=1)
         elif len(cameras) == 1:
-            panel = CameraModal._CameraFeedPanel(cameras[0])
+            panel = CameraModal._CameraFeedPanel(cameras[0], fill=True)
             vbox.addWidget(panel, stretch=1)
             self._panels.append(panel)
         elif len(cameras) == 2:
