@@ -3,6 +3,7 @@ from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton
 
 from ui.theme import ACCENT_GREEN, WINDOWS, BTN_ACTIVE, BTN_INACTIVE
 from ui.widgets.graph import GraphWidget
+from ui.widgets.hardware_status import HardwareStatusBar
 
 _DEFAULT_WINDOW = "5 min"
 
@@ -29,6 +30,10 @@ class SystemScreen(QWidget):
         root.addWidget(self.cpu_graph, stretch=1)
         root.addWidget(self.temp_graph, stretch=1)
 
+        self.hw_status = HardwareStatusBar()
+        self.hw_status.setFixedHeight(60)
+        root.addWidget(self.hw_status)
+
         # Time-window button bar
         bar = QWidget()
         bar.setFixedHeight(70)
@@ -53,6 +58,9 @@ class SystemScreen(QWidget):
         """Connect DataSampler signals. Called by MainWindow after construction."""
         sampler.cpu_sample.connect(self.cpu_graph.push)
         sampler.temp_sample.connect(self.temp_graph.push)
+        sampler.fan_sample.connect(self.hw_status.push_fan)
+        sampler.disk_sample.connect(self.hw_status.push_disk)
+        sampler.throttle_sample.connect(self.hw_status.push_throttle)
 
     def _select_window(self, label):
         if label == self._active_window:
