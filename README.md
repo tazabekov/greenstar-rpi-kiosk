@@ -41,6 +41,7 @@ Square Payment Terminal
 | GKM reporter (heartbeat + transaction sync) | ✅ Live — syncing to Firestore every 60 s |
 | Camera live view | ✅ Any attached camera; side-by-side for 2, tabs for 3+ |
 | Periodic camera snapshot → Firebase Storage | ✅ All cameras snapshotted; works during live feed |
+| Hardware status strip (throttle/fan/disk) | ✅ Live on System screen |
 | MDB Pi Hat integration | ⏳ Hardware arriving ~2026-06-23 |
 | Square Web API integration | ⏳ Needs credentials (see below) |
 
@@ -54,7 +55,7 @@ greenstar-rpi-kiosk/
 ├── core/
 │   ├── bus.py                  # AppBus singleton — app-wide Qt signals
 │   ├── models.py               # Transaction + TransactionEvent dataclasses
-│   ├── sampler.py              # DataSampler — CPU % and temperature via psutil
+│   ├── sampler.py              # DataSampler — CPU%, temperature, fan, disk, throttle signals via psutil
 │   ├── reporter.py             # GKM Reporter — heartbeat + transaction sync to Firestore
 │   ├── snapshotter.py          # Snapshotter — periodic camera JPEG → Firebase Storage (all cameras)
 │   ├── camera_registry.py      # CameraRegistry — discovers cameras, per-camera locks + running-cam ref
@@ -69,6 +70,7 @@ greenstar-rpi-kiosk/
 │   └── widgets/
 │       ├── graph.py            # Scrolling line graph with scan-line texture + x-axis
 │       ├── system_mini.py      # Compact CPU+temp bar indicators for dashboard sidebar
+│       ├── hardware_status.py   # HardwareStatusBar — throttle/fan/disk status strip on System screen
 │       ├── transaction_list.py # Painted transaction log — tap any row to see event log
 │       ├── payment_modal.py    # Touch-friendly payment dialog (keypad + FIAT/₿)
 │       ├── transaction_detail_modal.py  # Timestamped event log per transaction
