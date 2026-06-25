@@ -25,3 +25,18 @@ def qapp_instance():
     this fixture lets non-widget tests reuse the same instance)."""
     app = QApplication.instance() or QApplication(sys.argv)
     return app
+
+
+@pytest.hookimpl(wrapper=True, tryfirst=True)
+def pytest_runtest_teardown(item, nextitem):
+    """Hide all visible top-level Qt widgets before pytestqt processes pending
+    paint events.  On ARM/Xwayland the teardown paint can crash (SIGBUS/SIGSEGV)
+    if painted widgets are still visible when QApplication.processEvents() fires.
+    Using wrapper=True + tryfirst=True makes us the outermost wrapper so we run
+    before pytestqt's trylast wrapper."""
+    app = QApplication.instance()
+    if app is not None:
+        for widget in app.topLevelWidgets():
+            if widget.isVisible():
+                widget.hide()
+    return (yield)

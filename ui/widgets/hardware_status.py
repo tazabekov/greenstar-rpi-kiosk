@@ -128,7 +128,7 @@ class _FanPanel(QWidget):
             bg = QColor(ACCENT_GREEN)
             bg.setAlpha(25)
             painter.setBrush(bg)
-            painter.setPen(Qt.NoPen)
+            painter.setPen(QPen(Qt.NoPen))
             painter.drawRoundedRect(bar_x, bar_y, bar_w, bar_h, 4, 4)
 
             if ratio > 0:
@@ -183,7 +183,7 @@ class _DiskPanel(QWidget):
         bg = QColor(color)
         bg.setAlpha(25)
         painter.setBrush(bg)
-        painter.setPen(Qt.NoPen)
+        painter.setPen(QPen(Qt.NoPen))
         painter.drawRoundedRect(bar_x, bar_y, bar_w, bar_h, 4, 4)
 
         if ratio > 0:

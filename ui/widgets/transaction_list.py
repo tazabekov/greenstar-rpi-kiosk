@@ -133,7 +133,7 @@ class TransactionList(QWidget):
             bg = QColor(pcol)
             bg.setAlpha(30)
             painter.setBrush(bg)
-            painter.setPen(Qt.NoPen)
+            painter.setPen(QPen(Qt.NoPen))
             painter.drawRoundedRect(bx, cy - 10, bw, 20, 4, 4)
             painter.setFont(QFont("DejaVu Sans", 8, QFont.Bold))
             painter.setPen(QPen(pcol))
@@ -156,7 +156,7 @@ class TransactionList(QWidget):
             # Status dot
             dot_col = STATUS_DOT.get(tx.status, QColor("#555555"))
             painter.setBrush(dot_col)
-            painter.setPen(Qt.NoPen)
+            painter.setPen(QPen(Qt.NoPen))
             painter.drawEllipse(w - 10, cy - 4, 8, 8)
 
         painter.end()

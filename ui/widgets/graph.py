@@ -103,6 +103,15 @@ class GraphWidget(QWidget):
         self.data        = deque(maxlen=MAX_POINTS)
         self.window_samples = 150       # default: 5 min at 2 s
         self.setMinimumHeight(100)
+        self._closing = False
+
+    def closeEvent(self, event):
+        self._closing = True
+        super().closeEvent(event)
+
+    def hideEvent(self, event):
+        self._closing = True
+        super().hideEvent(event)
 
     def push(self, value):
         self.data.append(value)
@@ -115,7 +124,11 @@ class GraphWidget(QWidget):
     # ── Paint ─────────────────────────────────────────────────────────────────
 
     def paintEvent(self, event):
+        if self._closing or self.width() <= 0 or self.height() <= 0:
+            return
         painter = QPainter(self)
+        if not painter.isActive():
+            return
         painter.setRenderHint(QPainter.Antialiasing)
 
         w, h = self.width(), self.height()
@@ -131,9 +144,8 @@ class GraphWidget(QWidget):
         painter.setPen(QPen(BORDER_DIM, 1))
         painter.drawRect(0, 0, w - 1, h - 1)
 
-        # Scan-line texture
+        # Scan-line texture — fillRect ignores current pen, no setPen needed
         scanline = QColor(0, 0, 0, 45)
-        painter.setPen(Qt.NoPen)
         for row in range(0, plot_h, 4):
             painter.fillRect(left, top + row, plot_w, 2, scanline)
 
@@ -216,7 +228,7 @@ class GraphWidget(QWidget):
         grad.setColorAt(0.0, fill)
         grad.setColorAt(1.0, fade)
         painter.setBrush(grad)
-        painter.setPen(Qt.NoPen)
+        painter.setPen(QPen(Qt.NoPen))
         painter.drawPath(path)
 
         # Line — coloured segments (temp) or solid (CPU)

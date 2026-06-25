@@ -32,10 +32,10 @@ class StarIcon(QWidget):
         glow = QColor("#39ff14")
         glow.setAlpha(30)
         painter.setBrush(glow)
-        painter.setPen(Qt.NoPen)
+        painter.setPen(QPen(Qt.NoPen))
         painter.drawEllipse(QPointF(cx, cy), r_outer + 4, r_outer + 4)
         painter.setBrush(QColor("#39ff14"))
-        painter.setPen(Qt.NoPen)
+        painter.setPen(QPen(Qt.NoPen))
         painter.drawPath(path)
 
 
@@ -52,7 +52,7 @@ class CameraIcon(QWidget):
         p = QPainter(self)
         p.setRenderHint(QPainter.Antialiasing)
         col = QColor("#39ff14") if self._hovered else QColor("#555555")
-        p.setPen(Qt.NoPen)
+        p.setPen(QPen(Qt.NoPen))
         w, h = self.width(), self.height()
         # camera body
         bx, by, bw, bh = w * 0.14, h * 0.42, w * 0.72, h * 0.36
@@ -110,7 +110,7 @@ class StatusDotButton(QPushButton):
         r = self._DOT_R
         x = self.width() - r - 5
         y = r + 4
-        p.setPen(Qt.NoPen)
+        p.setPen(QPen(Qt.NoPen))
         p.setBrush(QColor("#0d0d0d"))
         p.drawEllipse(QPointF(x, y), r + 1.5, r + 1.5)
         p.setBrush(self._dot_color)
@@ -173,9 +173,9 @@ class HeaderWidget(QWidget):
         self._clock.setStyleSheet("border: none;")
         layout.addWidget(self._clock)
 
-        timer = QTimer(self)
-        timer.timeout.connect(self._tick)
-        timer.start(1000)
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._tick)
+        self._timer.start(1000)
         self._tick()
 
         layout.addSpacing(8)
@@ -216,6 +216,20 @@ class HeaderWidget(QWidget):
         cam_btn.clicked.connect(self.cameras_requested)
         idx = self.layout().indexOf(self._gear)
         self.layout().insertWidget(idx, cam_btn)
+
+    def _shutdown(self):
+        """Stop timer and disable updates to prevent ARM/Xwayland teardown
+        repaints from crashing (SIGBUS/SIGSEGV)."""
+        self._timer.stop()
+        self.setUpdatesEnabled(False)
+
+    def hideEvent(self, event):
+        self._shutdown()
+        super().hideEvent(event)
+
+    def closeEvent(self, event):
+        self._shutdown()
+        super().closeEvent(event)
 
     @pyqtSlot(str, str)
     def update_system_health(self, color: str, reason: str):

@@ -1,11 +1,19 @@
+from PyQt5.QtCore import Qt, pyqtSlot
 from PyQt5.QtGui import QColor
-from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QPushButton
+from PyQt5.QtWidgets import QWidget, QVBoxLayout, QHBoxLayout, QLabel, QPushButton
 
 from ui.theme import ACCENT_GREEN, WINDOWS, BTN_ACTIVE, BTN_INACTIVE
 from ui.widgets.graph import GraphWidget
 from ui.widgets.hardware_status import HardwareStatusBar
 
 _DEFAULT_WINDOW = "5 min"
+
+_HEALTH_SYMBOL = {"green": "●", "yellow": "⚠", "red": "✕"}
+_HEALTH_STYLE = {
+    "green":  "color: #39ff14; font-size: 10pt; padding-left: 4px; border: none;",
+    "yellow": "color: #f0a000; font-size: 10pt; padding-left: 4px; border: none;",
+    "red":    "color: #ff2244; font-size: 10pt; padding-left: 4px; border: none;",
+}
 
 
 class SystemScreen(QWidget):
@@ -16,6 +24,14 @@ class SystemScreen(QWidget):
         root = QVBoxLayout(self)
         root.setContentsMargins(10, 10, 10, 6)
         root.setSpacing(8)
+
+        self._status_label = QLabel("● Waiting…")
+        self._status_label.setFixedHeight(22)
+        self._status_label.setAlignment(Qt.AlignLeft | Qt.AlignVCenter)
+        self._status_label.setStyleSheet(
+            "color: #555555; font-size: 10pt; padding-left: 4px; border: none;"
+        )
+        root.addWidget(self._status_label)
 
         self.cpu_graph = GraphWidget(
             "CPU Usage", "%", ACCENT_GREEN,
@@ -54,6 +70,20 @@ class SystemScreen(QWidget):
         root.addWidget(bar)
         self._apply_styles(_DEFAULT_WINDOW)
 
+    def _disable_graph_updates(self):
+        """Disable updates on painted children to prevent ARM/Xwayland teardown
+        repaints from crashing (SIGBUS/SIGSEGV)."""
+        self.cpu_graph.setUpdatesEnabled(False)
+        self.temp_graph.setUpdatesEnabled(False)
+
+    def hideEvent(self, event):
+        self._disable_graph_updates()
+        super().hideEvent(event)
+
+    def closeEvent(self, event):
+        self._disable_graph_updates()
+        super().closeEvent(event)
+
     def wire_sampler(self, sampler):
         """Connect DataSampler signals. Called by MainWindow after construction."""
         sampler.cpu_sample.connect(self.cpu_graph.push)
@@ -74,3 +104,11 @@ class SystemScreen(QWidget):
     def _apply_styles(self, active):
         for label, btn in self._window_buttons.items():
             btn.setStyleSheet(BTN_ACTIVE if label == active else BTN_INACTIVE)
+
+    @pyqtSlot(str, str)
+    def update_health(self, color: str, reason: str):
+        symbol = _HEALTH_SYMBOL.get(color, "●")
+        self._status_label.setText(f"{symbol} {reason}")
+        self._status_label.setStyleSheet(
+            _HEALTH_STYLE.get(color, _HEALTH_STYLE["green"])
+        )

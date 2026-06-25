@@ -61,7 +61,7 @@ class _MiniGraph(QWidget):
 
         bg = QColor(self.line_color); bg.setAlpha(25)
         painter.setBrush(bg)
-        painter.setPen(Qt.NoPen)
+        painter.setPen(QPen(Qt.NoPen))
         painter.drawRoundedRect(pad + 4, bar_y, bar_w, bar_h, 4, 4)
 
         if ratio > 0:
