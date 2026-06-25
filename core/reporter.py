@@ -18,6 +18,8 @@ from datetime import datetime, timezone
 
 from PyQt5.QtCore import QObject, QTimer, pyqtSlot
 
+from core.bus import bus
+
 log = logging.getLogger(__name__)
 
 try:
@@ -162,8 +164,10 @@ class Reporter(QObject):
                 "temperature_c": self._temp,
                 "recorded_at": now,
             })
+            bus.firestore_ok_changed.emit(True)
         except Exception:
             log.exception("Reporter: heartbeat failed — will retry next cycle")
+            bus.firestore_ok_changed.emit(False)
 
     @staticmethod
     def _tx_to_dict(tx) -> dict:
