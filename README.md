@@ -187,6 +187,12 @@ Install pyserial when ready: `pip3 install pyserial`
 
 ## Square Integration (`core/square.py`)
 
+### Required hardware: Square Terminal
+
+The Terminal API only works with the **Square Terminal** (the dedicated countertop device, ~$299) or Square Register. **Square Handheld does not support Terminal API** — it is a standalone POS device and cannot receive remote checkout requests from the API. Square Reader dongles also do not support Terminal API.
+
+For the kiosk vending machine use case, Square Terminal is the correct hardware: the customer taps their card on the countertop terminal while the kiosk screen shows the payment flow.
+
 ### Active: SquareMockClient
 
 During development, `SquareMockClient` in `main.py` simulates the full Square Terminal API flow with realistic timing (fiat: ~6s, Bitcoin: ~8s). All event log entries are generated; no network calls are made.
@@ -195,24 +201,39 @@ During development, `SquareMockClient` in `main.py` simulates the full Square Te
 
 1. Create `.env` with:
    ```
-   SQUARE_ACCESS_TOKEN=sandbox-sq0idp-...
+   SQUARE_ACCESS_TOKEN=sq0atp-...   # production token from developer.squareup.com
    SQUARE_LOCATION_ID=L...
-   SQUARE_DEVICE_ID=device:...
-   SQUARE_ENVIRONMENT=sandbox
+   SQUARE_DEVICE_ID=device:...      # from GET /v2/devices after pairing (see below)
+   SQUARE_ENVIRONMENT=production
    ```
 
-2. Find your `SQUARE_DEVICE_ID`:
+2. Pair your Square Terminal to your Square account via device code:
    ```bash
-   curl https://connect.squareupsandbox.com/v2/devices \
-        -H "Authorization: Bearer YOUR_SANDBOX_TOKEN" \
+   python3 -c "
+   from dotenv import load_dotenv; load_dotenv()
+   import os, json, uuid, requests
+   token = os.getenv('SQUARE_ACCESS_TOKEN')
+   r = requests.post('https://connect.squareup.com/v2/devices/codes',
+       headers={'Authorization': f'Bearer {token}', 'Square-Version': '2025-01-23', 'Content-Type': 'application/json'},
+       json={'idempotency_key': str(uuid.uuid4()), 'device_code': {'name': 'GreenStar Terminal', 'product_type': 'TERMINAL_API', 'location_id': os.getenv('SQUARE_LOCATION_ID')}})
+   print(json.dumps(r.json(), indent=2))
+   "
+   ```
+   On the Square Terminal: **≡ → Settings → General → Terminal API Pairing** → enter the 6-letter code. The code expires in 5 minutes.
+
+3. Get your `SQUARE_DEVICE_ID` after pairing:
+   ```bash
+   curl https://connect.squareup.com/v2/devices \
+        -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
         -H "Square-Version: 2025-01-23"
    ```
+   Copy the `"id"` field from the paired device into `SQUARE_DEVICE_ID` in `.env`.
 
-3. Install deps: `pip3 install requests python-dotenv`
+4. Install deps: `pip3 install requests python-dotenv`
 
-4. `main.py` calls `make_square_client()` which automatically returns `SquareClient` when `SQUARE_ACCESS_TOKEN` is present, or `SquareMockClient` otherwise. No code change needed — just set the env var.
+5. `main.py` calls `make_square_client()` which automatically returns `SquareClient` when `SQUARE_ACCESS_TOKEN` is present, or `SquareMockClient` otherwise. No code change needed — just set the env var.
 
-5. `bus.payment_requested` → `SquareClient.request_payment()` is already wired in `main.py`.
+6. `bus.payment_requested` → `SquareClient.request_payment()` is already wired in `main.py`.
 
 ### Bitcoin / Square Terminal
 
