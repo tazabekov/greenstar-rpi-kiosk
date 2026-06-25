@@ -19,6 +19,7 @@ from PyQt5.QtWidgets import QApplication, QWidget, QVBoxLayout, QStackedWidget
 
 from core.bus import bus
 from core.camera_registry import registry
+from core.health import HealthMonitor
 from core.models import Transaction, TransactionEvent
 from core.reporter import Reporter
 from core.sampler import DataSampler
@@ -142,6 +143,20 @@ class MainWindow(QWidget):
         bus.transaction_event.connect(self._reporter.on_transaction_event)
         bus.settings_changed.connect(self._reporter.on_settings_changed)
         self._reporter.start()
+
+        # Health monitor — aggregates cpu/temp/disk/throttle/camera/firestore signals
+        self._health = HealthMonitor(self)
+        self._sampler.cpu_sample.connect(self._health.on_cpu)
+        self._sampler.temp_sample.connect(self._health.on_temp)
+        self._sampler.disk_sample.connect(self._health.on_disk)
+        self._sampler.throttle_sample.connect(self._health.on_throttle)
+        bus.camera_ok_changed.connect(self._health.on_camera_ok)
+        bus.firestore_ok_changed.connect(self._health.on_firestore_ok)
+        self._health.health_changed.connect(self._header.update_system_health)
+        self._health.health_changed.connect(self._system.update_health)
+
+        # Emit initial camera status — registry was already probed before MainWindow started
+        bus.camera_ok_changed.emit(bool(registry.cameras()))
 
         # Periodic camera snapshots — uploads to Firebase Storage if configured
         self._snapshotter = Snapshotter(self)
