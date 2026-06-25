@@ -1,7 +1,7 @@
 import math
 from datetime import datetime
 
-from PyQt5.QtCore import Qt, QTimer, QPointF, QRectF, pyqtSignal
+from PyQt5.QtCore import Qt, QTimer, QPointF, QRectF, pyqtSignal, pyqtSlot
 from PyQt5.QtGui import QPainter, QColor, QPainterPath, QPen
 from PyQt5.QtWidgets import QWidget, QHBoxLayout, QLabel, QPushButton
 
@@ -83,6 +83,41 @@ class CameraIcon(QWidget):
             self.clicked.emit()
 
 
+class StatusDotButton(QPushButton):
+    """QPushButton that overlays a small health-status dot in the top-right corner."""
+
+    _DOT_R = 6
+    _DOT_COLORS = {
+        "green":  QColor("#39ff14"),
+        "yellow": QColor("#f0a000"),
+        "red":    QColor("#ff2244"),
+    }
+
+    def __init__(self, text, parent=None):
+        super().__init__(text, parent)
+        self._dot_color = None
+
+    def set_health(self, color: str):
+        self._dot_color = self._DOT_COLORS.get(color)
+        self.update()
+
+    def paintEvent(self, event):
+        super().paintEvent(event)
+        if self._dot_color is None:
+            return
+        p = QPainter(self)
+        p.setRenderHint(QPainter.Antialiasing)
+        r = self._DOT_R
+        x = self.width() - r - 5
+        y = r + 4
+        p.setPen(Qt.NoPen)
+        p.setBrush(QColor("#0d0d0d"))
+        p.drawEllipse(QPointF(x, y), r + 1.5, r + 1.5)
+        p.setBrush(self._dot_color)
+        p.drawEllipse(QPointF(x, y), float(r), float(r))
+        p.end()
+
+
 class HeaderWidget(QWidget):
     tab_changed        = pyqtSignal(str)   # "dashboard" | "system"
     settings_requested = pyqtSignal()
@@ -111,7 +146,7 @@ class HeaderWidget(QWidget):
 
         self._tab_buttons = {}
         for key, label in self.TABS:
-            btn = QPushButton(label)
+            btn = StatusDotButton(label) if key == "system" else QPushButton(label)
             btn.setFixedHeight(44)
             btn.setMinimumWidth(110)
             btn.clicked.connect(lambda _, k=key: self._on_tab(k))
@@ -181,3 +216,7 @@ class HeaderWidget(QWidget):
         cam_btn.clicked.connect(self.cameras_requested)
         idx = self.layout().indexOf(self._gear)
         self.layout().insertWidget(idx, cam_btn)
+
+    @pyqtSlot(str, str)
+    def update_system_health(self, color: str, reason: str):
+        self._tab_buttons["system"].set_health(color)
