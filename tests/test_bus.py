@@ -203,3 +203,39 @@ class TestPaymentResultSignal:
 
         _, success, _ = blocker.args
         assert isinstance(success, bool)
+
+
+# ---------------------------------------------------------------------------
+# firestore_ok_changed signal
+# ---------------------------------------------------------------------------
+
+class TestFirestoreOkChangedSignal:
+    def test_fires_true(self, qtbot):
+        local_bus = AppBus()
+        with qtbot.waitSignal(local_bus.firestore_ok_changed, timeout=1000) as blocker:
+            local_bus.firestore_ok_changed.emit(True)
+        assert blocker.args[0] is True
+
+    def test_fires_false(self, qtbot):
+        local_bus = AppBus()
+        with qtbot.waitSignal(local_bus.firestore_ok_changed, timeout=1000) as blocker:
+            local_bus.firestore_ok_changed.emit(False)
+        assert blocker.args[0] is False
+
+
+# ---------------------------------------------------------------------------
+# camera_ok_changed signal
+# ---------------------------------------------------------------------------
+
+class TestCameraOkChangedSignal:
+    def test_fires_true(self, qtbot):
+        local_bus = AppBus()
+        with qtbot.waitSignal(local_bus.camera_ok_changed, timeout=1000) as blocker:
+            local_bus.camera_ok_changed.emit(True)
+        assert blocker.args[0] is True
+
+    def test_fires_false(self, qtbot):
+        local_bus = AppBus()
+        with qtbot.waitSignal(local_bus.camera_ok_changed, timeout=1000) as blocker:
+            local_bus.camera_ok_changed.emit(False)
+        assert blocker.args[0] is False

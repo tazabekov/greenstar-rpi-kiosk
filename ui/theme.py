@@ -22,12 +22,12 @@ WINDOWS = [
 BTN_ACTIVE = (
     "QPushButton { background-color: #39ff14; color: #0d0d0d;"
     " border: 2px solid #39ff14; border-radius: 8px;"
-    " font-size: 15pt; font-weight: bold; padding: 6px 0px; }"
+    " font-size: 13pt; font-weight: bold; padding: 6px 0px; }"
 )
 BTN_INACTIVE = (
     "QPushButton { background-color: #111111; color: #39ff14;"
     " border: 2px solid #1a5c08; border-radius: 8px;"
-    " font-size: 15pt; font-weight: bold; padding: 6px 0px; }"
+    " font-size: 13pt; font-weight: bold; padding: 6px 0px; }"
     " QPushButton:hover { border-color: #39ff14; background-color: #0d1f08; }"
 )
 
