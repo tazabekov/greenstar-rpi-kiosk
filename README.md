@@ -42,6 +42,7 @@ Square Payment Terminal
 | Camera live view | ✅ Any attached camera; side-by-side for 2, tabs for 3+ |
 | Periodic camera snapshot → Firebase Storage | ✅ All cameras snapshotted; works during live feed |
 | Hardware status strip (throttle/fan/disk) | ✅ Live on System screen |
+| Health status indicator | ✅ Shipped — green/yellow/red status in header and System screen |
 | MDB Pi Hat integration | ⏳ Hardware arriving ~2026-06-23 |
 | Square Web API integration | ⏳ Needs credentials (see below) |
 
@@ -56,6 +57,7 @@ greenstar-rpi-kiosk/
 │   ├── bus.py                  # AppBus singleton — app-wide Qt signals
 │   ├── models.py               # Transaction + TransactionEvent dataclasses
 │   ├── sampler.py              # DataSampler — CPU%, temperature, fan, disk, throttle signals via psutil
+│   ├── health.py               # HealthMonitor — aggregates cpu/temp/disk/throttle/camera/firestore signals
 │   ├── reporter.py             # GKM Reporter — heartbeat + transaction sync to Firestore
 │   ├── snapshotter.py          # Snapshotter — periodic camera JPEG → Firebase Storage (all cameras)
 │   ├── camera_registry.py      # CameraRegistry — discovers cameras, per-camera locks + running-cam ref
@@ -99,6 +101,8 @@ All components communicate via `bus` (singleton `AppBus`):
 | `payment_result` | `tx_id, success, message` | SquareMockClient / SquareClient | PaymentModal, TransactionList, TransactionDetailModal |
 | `settings_changed` | `name, location, kiosk_id` | SettingsModal | Reporter (`on_settings_changed`) |
 | `snapshot_interval_changed` | `minutes` | SettingsModal | Snapshotter (`set_interval`) |
+| `firestore_ok_changed` | `bool` | Reporter (after each 60 s heartbeat) | HealthMonitor |
+| `camera_ok_changed` | `bool` | MainWindow (once at startup) | HealthMonitor |
 
 ### Transaction Event Log
 
