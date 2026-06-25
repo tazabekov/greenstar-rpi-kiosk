@@ -217,18 +217,9 @@ class HeaderWidget(QWidget):
         idx = self.layout().indexOf(self._gear)
         self.layout().insertWidget(idx, cam_btn)
 
-    def _shutdown(self):
-        """Stop timer and disable updates to prevent ARM/Xwayland teardown
-        repaints from crashing (SIGBUS/SIGSEGV)."""
-        self._timer.stop()
-        self.setUpdatesEnabled(False)
-
-    def hideEvent(self, event):
-        self._shutdown()
-        super().hideEvent(event)
-
     def closeEvent(self, event):
-        self._shutdown()
+        """Stop timer on widget destruction to prevent repaints after cleanup."""
+        self._timer.stop()
         super().closeEvent(event)
 
     @pyqtSlot(str, str)
