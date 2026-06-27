@@ -116,7 +116,7 @@ class MainWindow(QWidget):
         self._header = HeaderWidget()
         self._header.tab_changed.connect(self._switch_screen)
         self._header.settings_requested.connect(self._open_settings)
-        self._header.quit_requested.connect(self._confirm_quit)
+        self._header.quit_requested.connect(self._show_admin_pin)
         if registry.cameras():
             self._header.show_camera_button()
             self._header.cameras_requested.connect(self._open_camera_modal)
