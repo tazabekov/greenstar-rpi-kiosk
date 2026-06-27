@@ -46,6 +46,9 @@ class Reporter(QObject):
         self._kiosk_ref = None
         self._cpu = 0.0
         self._temp = 0.0
+        self._disk = 0.0
+        self._throttle = 0
+        self._fan = -1
         self._timer = QTimer(self)
         self._timer.setInterval(self.HEARTBEAT_INTERVAL_MS)
         self._timer.timeout.connect(self._heartbeat)
@@ -94,6 +97,18 @@ class Reporter(QObject):
     @pyqtSlot(float)
     def on_temp_sample(self, value: float):
         self._temp = value
+
+    @pyqtSlot(float)
+    def on_disk_sample(self, value: float):
+        self._disk = value
+
+    @pyqtSlot(int)
+    def on_throttle_sample(self, value: int):
+        self._throttle = value
+
+    @pyqtSlot(int)
+    def on_fan_sample(self, value: int):
+        self._fan = value
 
     @pyqtSlot(object)
     def on_transaction_added(self, tx):
@@ -148,6 +163,9 @@ class Reporter(QObject):
                     "last_heartbeat": now,
                     "cpu_percent": self._cpu,
                     "temperature_c": self._temp,
+                    "disk_percent": self._disk,
+                    "throttle_flags": self._throttle,
+                    "fan_speed": self._fan,
                 })
                 log.info("Reporter: kiosk registered in Firestore")
             else:
@@ -155,6 +173,9 @@ class Reporter(QObject):
                     "last_heartbeat": now,
                     "cpu_percent": self._cpu,
                     "temperature_c": self._temp,
+                    "disk_percent": self._disk,
+                    "throttle_flags": self._throttle,
+                    "fan_speed": self._fan,
                     "name": os.getenv("GKM_KIOSK_NAME", self._kiosk_id),
                     "location": os.getenv("GKM_KIOSK_LOCATION", ""),
                 })
@@ -162,6 +183,9 @@ class Reporter(QObject):
             self._kiosk_ref.collection("metrics").add({
                 "cpu_percent": self._cpu,
                 "temperature_c": self._temp,
+                "disk_percent": self._disk,
+                "throttle_flags": self._throttle,
+                "fan_speed": self._fan,
                 "recorded_at": now,
             })
             bus.firestore_ok_changed.emit(True)
