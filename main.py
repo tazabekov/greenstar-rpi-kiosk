@@ -214,7 +214,16 @@ class MainWindow(QWidget):
 
     def keyPressEvent(self, event):
         if event.key() == Qt.Key_Escape:
-            QApplication.quit()
+            self._show_admin_pin()
+
+    def _show_admin_pin(self):
+        import os
+        if not os.environ.get("GKM_ADMIN_PIN"):
+            self._confirm_quit()
+            return
+        from ui.widgets.admin_pin_modal import AdminPinModal
+        if AdminPinModal(self).exec_() == AdminPinModal.Accepted:
+            self._confirm_quit()
 
 
 if __name__ == "__main__":
