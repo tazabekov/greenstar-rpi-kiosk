@@ -317,6 +317,8 @@ class _IdleScreen(QObject):
         QTimer.singleShot(2000, self._show)
 
     def _show(self):
+        if not self._active:
+            return
         import uuid
         try:
             import requests
