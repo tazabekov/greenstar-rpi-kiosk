@@ -239,3 +239,34 @@ class TestCameraOkChangedSignal:
         with qtbot.waitSignal(local_bus.camera_ok_changed, timeout=1000) as blocker:
             local_bus.camera_ok_changed.emit(False)
         assert blocker.args[0] is False
+
+
+# ---------------------------------------------------------------------------
+# crypto_session_changed signal
+# ---------------------------------------------------------------------------
+
+def test_crypto_session_changed_signal_exists(qapp):
+    from core.bus import bus
+    assert hasattr(bus, "crypto_session_changed")
+
+
+def test_bus_crypto_mode_default(qapp):
+    from core.bus import bus
+    assert bus.crypto_mode is False
+    assert bus.crypto_coin == ""
+
+
+def test_crypto_session_changed_emits_dict(qapp, qtbot):
+    from core.bus import bus
+    received = []
+    bus.crypto_session_changed.connect(lambda s: received.append(s))
+    bus.crypto_session_changed.emit({"status": "waiting_for_vend", "coin": "BTC"})
+    assert received[0]["coin"] == "BTC"
+
+
+def test_crypto_session_changed_emits_none(qapp, qtbot):
+    from core.bus import bus
+    received = []
+    bus.crypto_session_changed.connect(lambda s: received.append(s))
+    bus.crypto_session_changed.emit(None)
+    assert received[0] is None
