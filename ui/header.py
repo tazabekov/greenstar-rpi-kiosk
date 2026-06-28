@@ -142,6 +142,17 @@ class HeaderWidget(QWidget):
         logo.setStyleSheet("color: #39ff14; font-size: 22pt; font-weight: bold; border: none;")
         layout.addWidget(logo)
 
+        # Crypto mode indicator pill — hidden by default
+        self._crypto_pill = QLabel()
+        self._crypto_pill.setFixedHeight(28)
+        self._crypto_pill.setAlignment(Qt.AlignCenter)
+        self._crypto_pill.setStyleSheet(
+            "QLabel { background: #b45309; color: #fff8e7; border-radius: 6px;"
+            " padding: 0 10px; font-size: 11pt; font-weight: bold; border: none; }"
+        )
+        self._crypto_pill.hide()
+        layout.addWidget(self._crypto_pill)
+
         layout.addStretch()
 
         self._tab_buttons = {}
@@ -225,3 +236,19 @@ class HeaderWidget(QWidget):
     @pyqtSlot(str, str)
     def update_system_health(self, color: str, reason: str):
         self._tab_buttons["system"].set_health(color)
+
+    @pyqtSlot(object)
+    def update_crypto_session(self, session):
+        if session is None:
+            self._crypto_pill.hide()
+            return
+        status = session.get("status", "")
+        coin   = session.get("coin", "CRYPTO")
+        if status == "waiting_for_vend":
+            self._crypto_pill.setText(f"⟳ CRYPTO · {coin}")
+        elif status == "payment_shown":
+            self._crypto_pill.setText(f"⏳ {coin} PAYMENT")
+        else:
+            self._crypto_pill.hide()
+            return
+        self._crypto_pill.show()

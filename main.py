@@ -168,6 +168,7 @@ class MainWindow(QWidget):
 
         # Auto-selects SquareClient when SQUARE_ACCESS_TOKEN is in .env, else mock
         self._square = make_square_client(self)
+        bus.crypto_session_changed.connect(self._header.update_crypto_session)
 
         # Pre-populate transaction list
         for tx in reversed(SAMPLE_TRANSACTIONS):
