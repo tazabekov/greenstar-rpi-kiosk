@@ -164,6 +164,10 @@ class _PaymentWorker(QThread):
         self._headers      = headers
         self._device_id    = device_id
         self._location_id  = location_id
+        self._cancel_requested = False
+
+    def request_cancel(self):
+        self._cancel_requested = True
 
     def _ev(self, source, direction, message, raw=""):
         self.event_ready.emit(
@@ -186,7 +190,7 @@ class _PaymentWorker(QThread):
 
         checkout_block = {
             "amount_money": {"amount": cents, "currency": "USD"},
-            "device_options": {"device_id": self._device_id},
+            "device_options": {"device_id": self._device_id, "skip_receipt_screen": True},
             "location_id": self._location_id,
             "reference_id": tx_id,
             "note": f"MyGreenStar {tx_id}",
@@ -231,6 +235,13 @@ class _PaymentWorker(QThread):
         # Poll until terminal responds (max 2 min)
         for _ in range(60):
             time.sleep(2)
+
+            if self._cancel_requested:
+                self._ev("SYSTEM", "out", "User cancelled — cancelling checkout on terminal")
+                self._cancel_checkout(requests, checkout_id)
+                self.done.emit(tx_id, False, "Payment cancelled")
+                return
+
             try:
                 r = requests.get(
                     f"{self._base_url}/v2/terminals/checkouts/{checkout_id}",
@@ -260,15 +271,139 @@ class _PaymentWorker(QThread):
 
         # Timeout — cancel on terminal
         self._ev("SYSTEM", "out", "Timeout — cancelling checkout on terminal")
+        self._cancel_checkout(requests, checkout_id)
+        self.done.emit(tx_id, False, "Payment timed out after 2 minutes")
+
+    def _cancel_checkout(self, requests, checkout_id):
         try:
-            requests.delete(
+            requests.post(
                 f"{self._base_url}/v2/terminals/checkouts/{checkout_id}/cancel",
                 headers=self._headers,
                 timeout=10,
             )
         except Exception:
             pass
-        self.done.emit(tx_id, False, "Payment timed out after 2 minutes")
+
+
+class _IdleScreen(QObject):
+    """
+    Shows a QR code on the Square Terminal when no payment is in progress.
+    Refreshes before Square's 5-minute action deadline expires.
+    Pauses while a payment is active, resumes when it completes.
+    """
+
+    def __init__(self, base_url, headers_fn, device_id, parent=None):
+        super().__init__(parent)
+        self._base_url   = base_url
+        self._headers_fn = headers_fn
+        self._device_id  = device_id
+        self._action_id  = None
+        self._workers    = []
+        self._active     = True  # False while payment is in progress
+
+        self._title = os.getenv("SQUARE_IDLE_TITLE", "MyGreenStar")
+        self._body  = os.getenv("SQUARE_IDLE_BODY",  "Scan to visit our website")
+        self._url   = os.getenv("SQUARE_IDLE_URL",   "https://mygreenstar.org")
+
+        # Refresh every 4.5 min — before Square's 5-min deadline
+        self._timer = QTimer(self)
+        self._timer.setInterval(4 * 60 * 1000 + 30 * 1000)
+        self._timer.timeout.connect(self._show)
+
+        bus.payment_requested.connect(self._on_payment_start)
+        bus.payment_result.connect(self._on_payment_done)
+        bus.crypto_session_changed.connect(self._on_crypto_session)
+
+        QTimer.singleShot(2000, self._show)
+
+    def _show(self):
+        import uuid
+        try:
+            import requests
+        except ImportError:
+            return
+        body = {
+            "idempotency_key": str(uuid.uuid4()),
+            "action": {
+                "device_id": self._device_id,
+                "type": "QR_CODE",
+                "qr_code_options": {
+                    "title": self._title,
+                    "body":  self._body,
+                    "barcode_contents": self._url,
+                },
+            },
+        }
+        w = _IdleWorker("show", self._base_url, self._headers_fn(), body)
+        w.action_id_ready.connect(self._on_action_ready)
+        w.finished.connect(lambda worker=w: self._workers.remove(worker) if worker in self._workers else None)
+        self._workers.append(w)
+        self._timer.start()
+        w.start()
+
+    def _on_action_ready(self, action_id):
+        self._action_id = action_id
+
+    def _cancel_current(self):
+        self._timer.stop()
+        if self._action_id:
+            w = _IdleWorker("cancel", self._base_url, self._headers_fn(),
+                            action_id=self._action_id)
+            w.finished.connect(lambda worker=w: self._workers.remove(worker) if worker in self._workers else None)
+            self._workers.append(w)
+            self._action_id = None
+            w.start()
+
+    def _on_payment_start(self, *_):
+        self._active = False
+        self._cancel_current()
+
+    def _on_payment_done(self, *_):
+        self._active = True
+        QTimer.singleShot(3000, self._show)
+
+    def _on_crypto_session(self, session):
+        if session is None:
+            # Session cleared — restore idle screen (same as payment done)
+            self._active = True
+            QTimer.singleShot(3000, self._show)
+        else:
+            # Session active — suppress idle screen
+            self._active = False
+            self._cancel_current()
+
+
+class _IdleWorker(QThread):
+    action_id_ready = pyqtSignal(str)
+
+    def __init__(self, mode, base_url, headers, body=None, action_id=None):
+        super().__init__()
+        self._mode      = mode
+        self._base_url  = base_url
+        self._headers   = headers
+        self._body      = body
+        self._action_id = action_id
+
+    def run(self):
+        try:
+            import requests
+        except ImportError:
+            return
+        try:
+            if self._mode == "show":
+                r = requests.post(f"{self._base_url}/v2/terminals/actions",
+                                  headers=self._headers, json=self._body, timeout=10)
+                if r.ok:
+                    aid = r.json().get("action", {}).get("id", "")
+                    if aid:
+                        self.action_id_ready.emit(aid)
+            elif self._mode == "cancel" and self._action_id:
+                requests.post(
+                    f"{self._base_url}/v2/terminals/actions/{self._action_id}/cancel",
+                    headers=self._headers, timeout=10,
+                )
+        except Exception:
+            pass
 
 
 class SquareClient(QObject):
@@ -288,8 +423,10 @@ class SquareClient(QObject):
             if env == "production"
             else "https://connect.squareupsandbox.com"
         )
-        self._workers = []  # keep alive until thread finishes
+        self._workers = {}  # tx_id → _PaymentWorker, keep alive until thread finishes
+        self._idle_screen = _IdleScreen(self._base_url, self._headers, self._device, self)
         bus.payment_requested.connect(self._handle)
+        bus.payment_cancel_requested.connect(self._cancel)
 
     def _headers(self):
         return {
@@ -298,15 +435,22 @@ class SquareClient(QObject):
             "Square-Version": "2025-01-23",
         }
 
+    def _cancel(self, tx_id):
+        w = self._workers.get(tx_id)
+        if w:
+            w.request_cancel()
+
     def _handle(self, tx_id, amount, payment_type):
+        if bus.crypto_mode:
+            return  # CryptoSessionManager handles this payment
         w = _PaymentWorker(
             tx_id, amount, payment_type,
             self._base_url, self._headers(), self._device, self._location,
         )
+        self._workers[tx_id] = w
         w.event_ready.connect(bus.transaction_event)
         w.done.connect(bus.payment_result)
-        w.finished.connect(lambda worker=w: self._workers.remove(worker))
-        self._workers.append(w)
+        w.finished.connect(lambda worker=w: self._workers.pop(worker._tx_id, None))
         w.start()
 
 

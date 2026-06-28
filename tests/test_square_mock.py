@@ -235,3 +235,24 @@ class TestBitcoinTransactionEvents:
             assert ev.direction in ("in", "out"), (
                 f"Unexpected direction '{ev.direction}' for event: {ev.message}"
             )
+
+
+# ---------------------------------------------------------------------------
+# SquareClient crypto guard
+# ---------------------------------------------------------------------------
+
+def test_square_client_skips_when_crypto_mode(qapp, qtbot):
+    """SquareClient._handle must return early when bus.crypto_mode is True."""
+    from core.bus import bus
+    from core.square import SquareClient
+    from unittest.mock import patch
+
+    bus.crypto_mode = True
+    try:
+        client = SquareClient()
+        with patch.object(client, '_workers', {}):
+            with patch('core.square._PaymentWorker') as MockWorker:
+                bus.payment_requested.emit("tx-skip", 1.00, "fiat")
+                MockWorker.assert_not_called()
+    finally:
+        bus.crypto_mode = False
