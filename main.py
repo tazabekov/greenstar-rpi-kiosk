@@ -24,6 +24,7 @@ from core.models import Transaction, TransactionEvent
 from core.reporter import Reporter
 from core.sampler import DataSampler
 from core.snapshotter import Snapshotter
+from core.crypto_session import make_crypto_session_manager
 from core.square import make_square_client
 from ui.theme import BG_DARK, GLOBAL_STYLESHEET
 from ui.header import HeaderWidget
@@ -168,6 +169,7 @@ class MainWindow(QWidget):
 
         # Auto-selects SquareClient when SQUARE_ACCESS_TOKEN is in .env, else mock
         self._square = make_square_client(self)
+        self._crypto = make_crypto_session_manager(self)
         bus.crypto_session_changed.connect(self._header.update_crypto_session)
 
         # Pre-populate transaction list

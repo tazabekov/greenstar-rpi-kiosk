@@ -1,3 +1,4 @@
+import os
 import threading
 import uuid
 import logging
@@ -285,3 +286,32 @@ class CryptoSessionManager(QObject):
                 ref.update(data)  # partial update for status changes
         except Exception as exc:
             log.warning("CryptoSessionManager: Firestore write error: %s", exc)
+
+
+def make_crypto_session_manager(parent=None):
+    """
+    Creates a CryptoSessionManager when all required env vars are set.
+    Returns None and logs a warning otherwise (kiosk continues in FIAT-only mode).
+    """
+    kiosk_id     = os.getenv("GKM_KIOSK_ID", "")
+    access_token = os.getenv("SQUARE_ACCESS_TOKEN", "")
+    device_id    = os.getenv("SQUARE_DEVICE_ID", "")
+    sq_env       = os.getenv("SQUARE_ENVIRONMENT", "sandbox")
+    base_url     = (
+        "https://connect.squareup.com"
+        if sq_env == "production"
+        else "https://connect.squareupsandbox.com"
+    )
+
+    if not kiosk_id or not access_token:
+        log.info("CryptoSessionManager: GKM_KIOSK_ID or SQUARE_ACCESS_TOKEN not set — disabled")
+        return None
+
+    def headers_fn():
+        return {
+            "Authorization": f"Bearer {access_token}",
+            "Content-Type": "application/json",
+            "Square-Version": "2025-01-23",
+        }
+
+    return CryptoSessionManager(base_url, headers_fn, device_id, kiosk_id, parent)
