@@ -159,6 +159,12 @@ class CryptoSessionManager(QObject):
             self._restart_expiry_timer(session.get("expires_at"))
 
         elif status == "payment_shown":
+            # Handle reconnection: kiosk may have missed the waiting_for_vend snapshot
+            if not self._session_id:
+                self._session_id = sid
+            if not bus.crypto_mode:
+                bus.crypto_mode = True
+                bus.crypto_coin = session.get("coin", "BTC")
             # expires_at may have been extended — restart timer
             self._restart_expiry_timer(session.get("expires_at"))
             bus.crypto_session_changed.emit(session)
@@ -180,6 +186,8 @@ class CryptoSessionManager(QObject):
         self._expiry_timer.start(delta_ms)
 
     def _clear_session(self):
+        if not bus.crypto_mode and not self._session_id:
+            return  # already cleared — prevent double-emit
         self._expiry_timer.stop()
         self._cancel_terminal_action()
         bus.crypto_mode = False

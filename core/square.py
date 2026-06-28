@@ -443,7 +443,7 @@ class SquareClient(QObject):
             w.request_cancel()
 
     def _handle(self, tx_id, amount, payment_type):
-        if bus.crypto_mode:
+        if bus.crypto_mode or payment_type == "bitcoin":
             return  # CryptoSessionManager handles this payment
         w = _PaymentWorker(
             tx_id, amount, payment_type,
