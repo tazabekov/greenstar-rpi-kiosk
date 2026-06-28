@@ -1,7 +1,7 @@
 import threading
 import uuid
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 
 from PyQt5.QtCore import QObject, QThread, QTimer, pyqtSignal
 
@@ -27,6 +27,7 @@ class _CryptoQRWorker(QThread):
         self._payment_link = payment_link
 
     def run(self):
+        # 1. Post Terminal QR action
         try:
             import requests
             body = {
@@ -50,9 +51,32 @@ class _CryptoQRWorker(QThread):
             resp.raise_for_status()
             data = resp.json()
             action_id = data.get("action", {}).get("id", "")
-            self.qr_posted.emit(action_id, self._payment_link)
         except Exception as exc:
             log.warning("CryptoQRWorker: failed to post QR action: %s", exc)
+            action_id = ""
+
+        # 2. Write payment_shown to Firestore
+        expires_at = datetime.now(timezone.utc) + timedelta(seconds=60)
+        try:
+            from firebase_admin import firestore
+            db = firestore.client()
+            (
+                db.collection("kiosks")
+                  .document(self._kiosk_id)
+                  .collection("crypto_sessions")
+                  .document("active")
+                  .update({
+                      "status": "payment_shown",
+                      "amount_usd": self._amount,
+                      "payment_link": self._payment_link,
+                      "amount_crypto": None,  # future: from payment processor
+                      "expires_at": expires_at,
+                  })
+            )
+        except Exception as exc:
+            log.warning("_CryptoQRWorker: Firestore write error: %s", exc)
+
+        self.qr_posted.emit(action_id, self._payment_link)
 
 
 class CryptoSessionManager(QObject):
