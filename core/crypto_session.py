@@ -1,8 +1,7 @@
-import os
 import threading
 import uuid
 import logging
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 
 from PyQt5.QtCore import QObject, QThread, QTimer, pyqtSignal
 
@@ -34,7 +33,7 @@ class _CryptoQRWorker(QThread):
                 "idempotency_key": str(uuid.uuid4()),
                 "action": {
                     "device_id": self._device_id,
-                    "type": "DISPLAY_QR_CODE",
+                    "type": "QR_CODE",
                     "qr_code_options": {
                         "title": f"Pay with {self._coin}",
                         "body": f"Scan to pay ${self._amount:.2f} USD in {self._coin}",
