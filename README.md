@@ -37,14 +37,15 @@ Square Payment Terminal
 | Processing screen with live event log + elapsed timer | ✅ Working |
 | X-axis time labels on graphs | ✅ Working |
 | Time-window selector (1 min/5 min/1 hr/24 hr) | ✅ Working |
-| Test suite (105 tests, pytest-qt) | ✅ Passing |
+| Test suite (195 tests, pytest-qt) | ✅ Passing |
 | GKM reporter (heartbeat + transaction sync) | ✅ Live — syncing to Firestore every 60 s |
 | Camera live view | ✅ Any attached camera; side-by-side for 2, tabs for 3+ |
 | Periodic camera snapshot → Firebase Storage | ✅ All cameras snapshotted; works during live feed |
 | Hardware status strip (throttle/fan/disk) | ✅ Live on System screen |
 | Health status indicator | ✅ Shipped — green/yellow/red status in header and System screen |
 | MDB Pi Hat integration | ⏳ Hardware arriving ~2026-06-23 |
-| Square Web API integration | ⏳ Needs credentials (see below) |
+| Square Web API integration | ✅ Live — Square Terminal paired, production credentials set |
+| Crypto payment mode | ✅ Shipped — Firestore session listener, Terminal QR action, amber header pill |
 
 ## Software Architecture
 
@@ -61,7 +62,8 @@ greenstar-rpi-kiosk/
 │   ├── reporter.py             # GKM Reporter — heartbeat + transaction sync to Firestore
 │   ├── snapshotter.py          # Snapshotter — periodic camera JPEG → Firebase Storage (all cameras)
 │   ├── camera_registry.py      # CameraRegistry — discovers cameras, per-camera locks + running-cam ref
-│   ├── square.py               # SquareMockClient (active) + SquareClient skeleton
+│   ├── square.py               # SquareMockClient (active) + SquareClient + _IdleScreen (Terminal QR)
+│   ├── crypto_session.py       # CryptoSessionManager — Firestore listener + Terminal QR + session state
 │   └── mdb.py                  # MDB Pi Hat stub (to be implemented)
 ├── ui/
 │   ├── theme.py                # Colour palette, button stylesheets, WINDOWS
@@ -86,7 +88,8 @@ greenstar-rpi-kiosk/
     ├── test_payment_modal.py   # Keypad, validation, type toggle (31 tests)
     ├── test_camera_registry.py # CameraRegistry probe, locks, running-cam ref (5 tests)
     ├── test_camera_modal.py    # CameraModal layout + panel lifecycle + header button (11 tests)
-    └── test_snapshotter.py     # Snapshotter — idle/live capture paths + settings (19 tests)
+    ├── test_snapshotter.py     # Snapshotter — idle/live capture paths + settings (19 tests)
+    └── test_crypto_session.py  # CryptoSessionManager state machine + payment interception (8 tests)
 ```
 
 ### Event Bus (`core/bus.py`)
@@ -103,6 +106,8 @@ All components communicate via `bus` (singleton `AppBus`):
 | `snapshot_interval_changed` | `minutes` | SettingsModal | Snapshotter (`set_interval`) |
 | `firestore_ok_changed` | `bool` | Reporter (after each 60 s heartbeat) | HealthMonitor |
 | `camera_ok_changed` | `bool` | MainWindow (once at startup) | HealthMonitor |
+| `payment_cancel_requested` | `tx_id` | PaymentModal (Cancel button) | SquareClient |
+| `crypto_session_changed` | `session dict \| None` | CryptoSessionManager | HeaderWidget (pill), _IdleScreen |
 
 ### Transaction Event Log
 
@@ -153,7 +158,7 @@ Press **Esc** to quit (development only).
 python3 -m pytest tests/ -v
 ```
 
-118 tests, 0 failures. Covers models, AppBus signals, Square mock event sequence, PaymentModal logic, camera registry, camera modal, and Snapshotter.
+195 tests, 0 failures. Covers models, AppBus signals, Square mock event sequence, PaymentModal logic, camera registry, camera modal, Snapshotter, and CryptoSessionManager state machine.
 
 ## Display Notes
 
@@ -207,27 +212,38 @@ During development, `SquareMockClient` in `main.py` simulates the full Square Te
    SQUARE_ENVIRONMENT=production
    ```
 
-2. Pair your Square Terminal to your Square account via device code:
+2. Pair your Square Terminal via device code:
+
+   **Step 1 — generate the code** (expires in 5 minutes):
    ```bash
-   python3 -c "
-   from dotenv import load_dotenv; load_dotenv()
-   import os, json, uuid, requests
-   token = os.getenv('SQUARE_ACCESS_TOKEN')
-   r = requests.post('https://connect.squareup.com/v2/devices/codes',
-       headers={'Authorization': f'Bearer {token}', 'Square-Version': '2025-01-23', 'Content-Type': 'application/json'},
-       json={'idempotency_key': str(uuid.uuid4()), 'device_code': {'name': 'GreenStar Terminal', 'product_type': 'TERMINAL_API', 'location_id': os.getenv('SQUARE_LOCATION_ID')}})
-   print(json.dumps(r.json(), indent=2))
-   "
+   curl -s -X POST https://connect.squareup.com/v2/devices/codes \
+     -H "Authorization: Bearer $(grep SQUARE_ACCESS_TOKEN .env | cut -d= -f2)" \
+     -H "Content-Type: application/json" \
+     -H "Square-Version: 2025-01-23" \
+     -d "{
+       \"idempotency_key\": \"$(cat /proc/sys/kernel/random/uuid)\",
+       \"device_code\": {
+         \"product_type\": \"TERMINAL_API\",
+         \"location_id\": \"$(grep SQUARE_LOCATION_ID .env | cut -d= -f2)\"
+       }
+     }" | python3 -m json.tool
    ```
-   On the Square Terminal: **≡ → Settings → General → Terminal API Pairing** → enter the 6-letter code. The code expires in 5 minutes.
+   Note the `"code"` field — a 6-letter string.
+
+   **Step 2 — enter the code on the terminal:**
+   The Square Terminal must be at the **Sign-in screen** (not already signed in to a Square account).
+   Tap **Sign in → Use a device code** → enter the 6-letter code → tap **Sign in**.
+   The terminal shows **"Powered by Square"** on success.
+
+   > **Note:** The menu path **≡ → Settings → General → Terminal API Pairing** does NOT exist on current firmware. The correct entry point is the Sign-in screen's "Use a device code" button.
 
 3. Get your `SQUARE_DEVICE_ID` after pairing:
    ```bash
-   curl https://connect.squareup.com/v2/devices \
-        -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
-        -H "Square-Version: 2025-01-23"
+   curl -s https://connect.squareup.com/v2/devices \
+        -H "Authorization: Bearer $(grep SQUARE_ACCESS_TOKEN .env | cut -d= -f2)" \
+        -H "Square-Version: 2025-01-23" | python3 -m json.tool
    ```
-   Copy the `"id"` field from the paired device into `SQUARE_DEVICE_ID` in `.env`.
+   The response `"id"` field has a `device:` prefix (e.g. `device:614VS149C4002771`). **Strip the prefix** — use only the serial number (`614VS149C4002771`) as `SQUARE_DEVICE_ID`. The Terminal Checkout API rejects the prefixed form with "Merchant not authorized".
 
 4. Install deps: `pip3 install requests python-dotenv`
 
@@ -235,11 +251,61 @@ During development, `SquareMockClient` in `main.py` simulates the full Square Te
 
 6. `bus.payment_requested` → `SquareClient.request_payment()` is already wired in `main.py`.
 
-### Bitcoin / Square Terminal
+### Crypto Payment Mode (`core/crypto_session.py`)
 
-Square Terminal API does not natively support Bitcoin. Recommended path:
-- **Cash App Pay** — Square terminals can offer Cash App Pay as a payment method, which supports crypto (incl. BTC). Enable via `payment_options.crypto_enabled: true` in the checkout body (already in `SquareMockClient` and `SquareClient`).
-- Confirm with Square developer support whether your terminal hardware supports Cash App Pay before going live.
+When crypto mode is active the kiosk bypasses Square FIAT checkout and posts a **`QR_CODE` Terminal Action** to the Square Terminal instead, showing a payment QR the customer scans with their phone.
+
+**How it works:**
+
+```
+Customer phone
+    │  scan static QR on Square Terminal idle screen
+    ▼
+kiosk-manager web app  (/enable-crypto/[kiosk_id])
+    │  write to Firestore: /kiosks/{id}/crypto_sessions/active
+    ▼
+CryptoSessionManager  (on_snapshot listener)
+    │  sets bus.crypto_mode = True, bus.crypto_coin = "BTC"
+    │  amber pill appears in kiosk header: ⟳ CRYPTO · BTC
+    ▼
+Payment trigger (MDB vend, manual modal, or direct Bitcoin selection)
+    │  SquareClient skips — CryptoSessionManager intercepts
+    ▼
+_CryptoQRWorker  (QThread)
+    │  POST /v2/terminals/actions  (type: QR_CODE)
+    │  writes payment_shown to Firestore (amount_usd, payment_link, expires_at)
+    ▼
+Square Terminal shows payment QR for 60 s
+    │  customer pays via external processor (future step)
+    ├── paid → session cleared, pill hidden, idle QR restored
+    └── expired → same cleanup
+```
+
+**Three payment trigger paths:**
+- **Path A** — MDB vend signal fires while `bus.crypto_mode == True`
+- **Path B** — operator enters amount in payment modal while crypto mode active
+- **Path C** — operator selects Bitcoin directly in payment modal (no prior web session)
+
+**Env vars (optional — crypto mode disabled without them):**
+```
+GKM_KIOSK_ID          must be set (also needed for Firestore in general)
+SQUARE_ACCESS_TOKEN   must be set (same as FIAT mode)
+SQUARE_DEVICE_ID      must be set
+```
+
+**Idle QR screen on terminal:** When no payment is in progress, `_IdleScreen` posts a `QR_CODE` action showing a configurable link. Controlled by:
+```
+SQUARE_IDLE_TITLE=MyGreenStar
+SQUARE_IDLE_BODY=Scan to visit our website
+SQUARE_IDLE_URL=https://mygreenstar.org
+```
+The idle screen is automatically suppressed while a crypto session is active.
+
+**Processor integration** (placeholder, next step): `payment_link` is currently `https://mygreenstar.org/pay/{tx_id}`. Real crypto processor (BTCPay Server, OpenNode, Strike) integration and `paid` webhook → Firestore write is a separate step.
+
+### Bitcoin via Square Terminal
+
+Square Terminal API does not natively support Bitcoin as a checkout type. The crypto payment flow above is the recommended path (QR code + external processor).
 
 ## Camera Snapshot Upload (`core/snapshotter.py`)
 
