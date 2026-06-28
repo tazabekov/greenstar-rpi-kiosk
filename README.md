@@ -62,7 +62,7 @@ greenstar-rpi-kiosk/
 │   ├── reporter.py             # GKM Reporter — heartbeat + transaction sync to Firestore
 │   ├── snapshotter.py          # Snapshotter — periodic camera JPEG → Firebase Storage (all cameras)
 │   ├── camera_registry.py      # CameraRegistry — discovers cameras, per-camera locks + running-cam ref
-│   ├── square.py               # SquareMockClient (active) + SquareClient + _IdleScreen (Terminal QR)
+│   ├── square.py               # SquareMockClient (active) + SquareClient
 │   ├── crypto_session.py       # CryptoSessionManager — Firestore listener + Terminal QR + session state
 │   └── mdb.py                  # MDB Pi Hat stub (to be implemented)
 ├── ui/
@@ -107,7 +107,7 @@ All components communicate via `bus` (singleton `AppBus`):
 | `firestore_ok_changed` | `bool` | Reporter (after each 60 s heartbeat) | HealthMonitor |
 | `camera_ok_changed` | `bool` | MainWindow (once at startup) | HealthMonitor |
 | `payment_cancel_requested` | `tx_id` | PaymentModal (Cancel button) | SquareClient |
-| `crypto_session_changed` | `session dict \| None` | CryptoSessionManager | HeaderWidget (pill), _IdleScreen |
+| `crypto_session_changed` | `session dict \| None` | CryptoSessionManager | HeaderWidget (pill) |
 
 ### Transaction Event Log
 
@@ -259,7 +259,7 @@ When crypto mode is active the kiosk bypasses Square FIAT checkout and posts a *
 
 ```
 Customer phone
-    │  scan static QR on Square Terminal idle screen
+    │  scan static QR image on Square Terminal (uploaded via Square Dashboard)
     ▼
 kiosk-manager web app  (/enable-crypto/[kiosk_id])
     │  write to Firestore: /kiosks/{id}/crypto_sessions/active
@@ -277,7 +277,7 @@ _CryptoQRWorker  (QThread)
     ▼
 Square Terminal shows payment QR for 60 s
     │  customer pays via external processor (future step)
-    ├── paid → session cleared, pill hidden, idle QR restored
+    ├── paid → session cleared, pill hidden
     └── expired → same cleanup
 ```
 
@@ -293,13 +293,7 @@ SQUARE_ACCESS_TOKEN   must be set (same as FIAT mode)
 SQUARE_DEVICE_ID      must be set
 ```
 
-**Idle QR screen on terminal:** When no payment is in progress, `_IdleScreen` posts a `QR_CODE` action showing a configurable link. Controlled by:
-```
-SQUARE_IDLE_TITLE=MyGreenStar
-SQUARE_IDLE_BODY=Scan to visit our website
-SQUARE_IDLE_URL=https://mygreenstar.org
-```
-The idle screen is automatically suppressed while a crypto session is active.
+**Terminal idle screen:** The static background image (showing the crypto invite QR code) is uploaded directly via the Square Dashboard — the kiosk app does not post any QR actions on startup or while idle.
 
 **Processor integration** (placeholder, next step): `payment_link` is currently `https://mygreenstar.org/pay/{tx_id}`. Real crypto processor (BTCPay Server, OpenNode, Strike) integration and `paid` webhook → Firestore write is a separate step.
 
