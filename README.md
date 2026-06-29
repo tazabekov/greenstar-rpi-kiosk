@@ -251,7 +251,7 @@ During development, `SquareMockClient` in `main.py` simulates the full Square Te
 
 6. `bus.payment_requested` → `SquareClient.request_payment()` is already wired in `main.py`.
 
-### Crypto Payment Mode (`core/crypto_session.py`)
+### Crypto Payment Mode (`core/crypto_session.py`, `core/bitpay.py`)
 
 When crypto mode is active the kiosk bypasses Square FIAT checkout and posts a **`QR_CODE` Terminal Action** to the Square Terminal instead, showing a payment QR the customer scans with their phone.
 
@@ -272,30 +272,34 @@ Payment trigger (MDB vend, manual modal, or direct Bitcoin selection)
     │  SquareClient skips — CryptoSessionManager intercepts
     ▼
 _CryptoQRWorker  (QThread)
-    │  POST /v2/terminals/actions  (type: QR_CODE)
+    │  BitPayClient.create_invoice() → (invoice_id, payment_url)
+    │  POST /v2/terminals/actions  (type: QR_CODE, barcode_contents: payment_url)
     │  writes payment_shown to Firestore (amount_usd, payment_link, expires_at)
     ▼
 Square Terminal shows payment QR for 60 s
-    │  customer pays via external processor (future step)
-    ├── paid → session cleared, pill hidden
-    └── expired → same cleanup
+    │  _poll_timer fires every 5 s → BitPayClient.get_invoice_status(invoice_id)
+    ├── paid/confirmed/complete → writes status: "paid" to Firestore → session cleared
+    └── expired → session cleared
 ```
 
 **Three payment trigger paths:**
 - **Path A** — MDB vend signal fires while `bus.crypto_mode == True`
 - **Path B** — operator enters amount in payment modal while crypto mode active
-- **Path C** — operator selects Bitcoin directly in payment modal (no prior web session)
+- **Path C** — operator selects Bitcoin directly in payment modal (no prior web session); session written to Firestore with `session_owner: "kiosk"`
 
-**Env vars (optional — crypto mode disabled without them):**
+**Env vars:**
 ```
 GKM_KIOSK_ID          must be set (also needed for Firestore in general)
 SQUARE_ACCESS_TOKEN   must be set (same as FIAT mode)
 SQUARE_DEVICE_ID      must be set
+BITPAY_API_KEY        optional — leave blank to use BitPayMockClient (simulates paid after 10 s)
 ```
 
-**Terminal idle screen:** The static background image (showing the crypto invite QR code) is uploaded directly via the Square Dashboard — the kiosk app does not post any QR actions on startup or while idle.
+**BitPay client selection** (same pattern as Square):
+- `BITPAY_API_KEY` set → `BitPayClient` (real API — credentials pending)
+- `BITPAY_API_KEY` not set → `BitPayMockClient` (auto-reports paid after 10 s for dev/test)
 
-**Processor integration** (placeholder, next step): `payment_link` is currently `https://mygreenstar.org/pay/{tx_id}`. Real crypto processor (BTCPay Server, OpenNode, Strike) integration and `paid` webhook → Firestore write is a separate step.
+**Terminal idle screen:** The static background image (showing the crypto invite QR code) is uploaded directly via the Square Dashboard — the kiosk app does not post any QR actions on startup or while idle.
 
 ### Bitcoin via Square Terminal
 
