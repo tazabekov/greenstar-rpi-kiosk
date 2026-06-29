@@ -37,7 +37,7 @@ Square Payment Terminal
 | Processing screen with live event log + elapsed timer | ✅ Working |
 | X-axis time labels on graphs | ✅ Working |
 | Time-window selector (1 min/5 min/1 hr/24 hr) | ✅ Working |
-| Test suite (195 tests, pytest-qt) | ✅ Passing |
+| Test suite (213 tests, pytest-qt) | ✅ Passing |
 | GKM reporter (heartbeat + transaction sync) | ✅ Live — syncing to Firestore every 60 s |
 | Camera live view | ✅ Any attached camera; side-by-side for 2, tabs for 3+ |
 | Periodic camera snapshot → Firebase Storage | ✅ All cameras snapshotted; works during live feed |
@@ -63,7 +63,8 @@ greenstar-rpi-kiosk/
 │   ├── snapshotter.py          # Snapshotter — periodic camera JPEG → Firebase Storage (all cameras)
 │   ├── camera_registry.py      # CameraRegistry — discovers cameras, per-camera locks + running-cam ref
 │   ├── square.py               # SquareMockClient (active) + SquareClient
-│   ├── crypto_session.py       # CryptoSessionManager — Firestore listener + Terminal QR + session state
+│   ├── crypto_session.py       # CryptoSessionManager — Firestore listener + Terminal QR + BitPay polling
+│   ├── bitpay.py               # BitPayMockClient (active) + BitPayClient stub; make_bitpay_client()
 │   └── mdb.py                  # MDB Pi Hat stub (to be implemented)
 ├── ui/
 │   ├── theme.py                # Colour palette, button stylesheets, WINDOWS
@@ -89,7 +90,8 @@ greenstar-rpi-kiosk/
     ├── test_camera_registry.py # CameraRegistry probe, locks, running-cam ref (5 tests)
     ├── test_camera_modal.py    # CameraModal layout + panel lifecycle + header button (11 tests)
     ├── test_snapshotter.py     # Snapshotter — idle/live capture paths + settings (19 tests)
-    └── test_crypto_session.py  # CryptoSessionManager state machine + payment interception (8 tests)
+    ├── test_crypto_session.py  # CryptoSessionManager state machine + BitPay wiring (16 tests)
+    └── test_bitpay.py          # BitPayMockClient, BitPayClient stub, make_bitpay_client() (10 tests)
 ```
 
 ### Event Bus (`core/bus.py`)
@@ -158,7 +160,7 @@ Press **Esc** to quit (development only).
 python3 -m pytest tests/ -v
 ```
 
-195 tests, 0 failures. Covers models, AppBus signals, Square mock event sequence, PaymentModal logic, camera registry, camera modal, Snapshotter, and CryptoSessionManager state machine.
+213 tests, 0 failures. Covers models, AppBus signals, Square mock event sequence, PaymentModal logic, camera registry, camera modal, Snapshotter, CryptoSessionManager state machine, and BitPay client.
 
 ## Display Notes
 
