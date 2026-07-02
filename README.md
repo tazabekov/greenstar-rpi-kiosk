@@ -189,7 +189,8 @@ This line appears in the log and is **harmless**. Xwayland windows cannot reques
 KreaTouch  →  MDB cable  →  Right (Peripheral) port on Pi Hat
                              ↑ NOT the left port — that's the VMC/master side
 Pi Hat  →  USB  →  RPi5   /dev/ttyACM0
-      or   UART GPIO        /dev/ttyS0  (Pi 5 only)
+      or   UART GPIO        /dev/serial0  →  ttyAMA10  (Pi 5; primary UART symlink)
+                             /dev/ttyS0   (older Pi models)
 ```
 
 **Jumper Set 1** must be **REMOVED** (Split Mode). Do not install them horizontally — that's sniff mode, which bridges both ports and prevents cashless peripheral operation.
@@ -246,7 +247,7 @@ KreaTouch selects item
 ### Environment variable
 
 ```
-GKM_MDB_PORT=    # leave blank to auto-detect (checks ttyACM0, ttyUSB0, ttyS0)
+GKM_MDB_PORT=    # leave blank to auto-detect (checks ttyACM0, ttyUSB0, serial0, ttyAMA10, ttyS0)
 ```
 
 ### First-time setup checklist (run after reconnecting hardware)
@@ -255,12 +256,17 @@ GKM_MDB_PORT=    # leave blank to auto-detect (checks ttyACM0, ttyUSB0, ttyS0)
 # 1. Install pyserial if not yet installed
 pip3 install pyserial
 
-# 2. Confirm Pi Hat is visible on USB
-ls /dev/ttyACM* /dev/ttyUSB*        # expect /dev/ttyACM0
+# 2. Confirm hat port is visible
+ls -la /dev/ttyACM* /dev/ttyUSB* /dev/serial* /dev/ttyAMA* 2>/dev/null
+# USB mode: expect /dev/ttyACM0
+# UART mode (Pi 5): expect /dev/serial0 -> ttyAMA10
 
 # 3. Sanity-check: Pi Hat responds to version query
 #    (Ctrl-A X to exit minicom)
+#    USB:
 sudo minicom -b 115200 -D /dev/ttyACM0
+#    UART (Pi 5):
+sudo minicom -b 115200 -D /dev/serial0
 #    type:  V  then Enter
 #    expect: v,<firmware-version>,<serial-number>
 

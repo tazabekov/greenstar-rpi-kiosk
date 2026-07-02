@@ -35,8 +35,9 @@ from core.models import Transaction, TransactionEvent
 log = logging.getLogger(__name__)
 
 _BAUD = 115200
-# Auto-detect order: USB CDC first (most common), then UART
-_AUTO_PORTS = ["/dev/ttyACM0", "/dev/ttyUSB0", "/dev/ttyS0"]
+# Auto-detect order: USB CDC first, then UART (serial0 = Pi's primary UART symlink,
+# covers ttyAMA10 on Pi 5 and ttyS0/ttyAMA0 on earlier models)
+_AUTO_PORTS = ["/dev/ttyACM0", "/dev/ttyUSB0", "/dev/serial0", "/dev/ttyAMA10", "/dev/ttyS0"]
 
 
 def _resolve_port() -> str | None:
