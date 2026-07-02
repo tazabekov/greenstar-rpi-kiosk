@@ -1,5 +1,77 @@
 # MyGreenStar Kiosk
 
+---
+
+## 🚧 WIP — MDB Hat UART debugging (session 2026-07-01)
+
+**Where we left off:** trying to get the MDB Pi Hat talking to the Pi 5 over UART so the hat can be configured as a cashless peripheral. Everything rebooted at end of session.
+
+### Symptoms
+- KreaTouch shows: **"Blocking failure list: No communication with payment device (000088)"** — KreaTouch is polling the MDB bus but the hat hasn't been configured by our code yet (never gets `C,1` enable command), so it stays silent.
+- Hat LED4 blinks green intermittently → hat **is powered** and sees MDB frames from KreaTouch.
+- **Pi gets zero response** on serial port at any baud rate or parity config.
+
+### What was confirmed working
+- `/boot/firmware/config.txt` has `dtoverlay=disable-bt` + `dtoverlay=uart0` ✅
+- `/boot/firmware/cmdline.txt` does NOT have `console=serial0,115200` (kernel serial console disabled) ✅
+- `hciuart` service is disabled ✅
+- GPIO 14 = TXD0 (ALT4), GPIO 15 = RXD0 (ALT4) per `pinctrl get 14,15` ✅
+- `/dev/serial0` → `ttyAMA10` exists, dialout-accessible, no processes blocking it ✅
+- Tried: `V\n`, `C,1\n`, `C,SETCONF,mdb-addr=0x10\n` at 9600/19200/38400/57600/115200 baud, all parity modes, passive listen for 5 s — **all zero response**
+
+### Next steps to try (in order)
+
+**Step 1 — USB mode sanity check (most important)**
+
+The hat has a USB Toggle Jumper. Currently it is **OPEN** (UART GPIO mode). Try **closing it** (add the jumper back) and see if `/dev/ttyACM0` appears:
+
+```bash
+ls /dev/ttyACM*         # should show /dev/ttyACM0 in USB mode
+python3 -c "
+import serial, time
+s = serial.Serial('/dev/ttyACM0', 115200, timeout=2)
+s.write(b'V\n')
+time.sleep(1)
+print(s.read(200))
+s.close()
+"
+# expect: b'v,<version>,<serial>\r\n'
+```
+
+If this works → hat firmware is fine, UART GPIO path is the hardware problem; **use USB mode going forward** and update `GKM_MDB_PORT=/dev/ttyACM0` or just leave auto-detect (ttyACM0 is first in the list).
+
+**Step 2 — if UART GPIO is still needed, try Pi 5-specific overlay**
+
+The boot config uses `dtoverlay=uart0` (generic). There is a Pi 5-specific variant:
+
+```bash
+# in /boot/firmware/config.txt, replace:
+dtoverlay=uart0
+# with:
+dtoverlay=uart0-pi5
+# then reboot and retry version check on /dev/serial0
+```
+
+**Step 3 — loopback test to verify UART TX is alive**
+
+Remove the hat from the GPIO header. Short **GPIO 14 (pin 8)** to **GPIO 15 (pin 10)** with a jumper wire. Run:
+
+```bash
+python3 -c "
+import serial, time
+s = serial.Serial('/dev/serial0', 115200, timeout=1)
+s.write(b'HELLO\n')
+time.sleep(0.1)
+print(s.read(100))   # expect b'HELLO\n' back
+s.close()
+"
+```
+
+If loopback works → Pi UART TX/RX are fine → hat's UART interface is the problem (wiring inside hat or chip issue).
+If loopback fails → Pi UART TX is not outputting, check `dtoverlay=uart0-pi5` (Step 2).
+
+---
+
 > **Part of the GreenStar system.** The web dashboard and system brain lives at [`greenstar-kiosk-manager`](https://github.com/tazabekov/greenstar-kiosk-manager) — that repo is the authoritative source for architecture, registered kiosks, and deployment info.
 
 Coffee vending machine payment kiosk running on a Raspberry Pi 5 with an 800×480 capacitive touchscreen.
