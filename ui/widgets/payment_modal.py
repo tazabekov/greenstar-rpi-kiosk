@@ -209,7 +209,7 @@ class PaymentModal(QDialog):
         cancel = QPushButton("Cancel")
         cancel.setFixedHeight(44)
         cancel.setStyleSheet(BTN_CANCEL)
-        cancel.clicked.connect(self.reject)
+        cancel.clicked.connect(self._cancel_payment)
         layout.addWidget(cancel)
         return page
 
@@ -366,6 +366,11 @@ class PaymentModal(QDialog):
                 self._proc_scroll.verticalScrollBar().maximum()
             )
         )
+
+    def _cancel_payment(self):
+        if self._tx_id:
+            bus.payment_cancel_requested.emit(self._tx_id)
+        self.reject()
 
     def _on_result(self, tx_id, success, message):
         if tx_id != self._tx_id:

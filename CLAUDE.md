@@ -8,7 +8,7 @@ Sections most likely to need updating:
 - **Current Status** table: update ✅/⏳/❌ when a feature ships or a blocker is found
 - **Known Issues / Wayland Notes**: add any new runtime warnings or display quirks
 - **Architecture** and **Screen Size Constraints**: update when new screens or signals are added
-- **MDB / Square Integration** guides: update when real hardware or credentials arrive
+- **MDB / Square Integration** guides: update when wiring changes or new behaviour is observed
 
 ---
 
@@ -60,7 +60,7 @@ core/snapshotter.py      Snapshotter — periodic camera JPEG → Firebase Stora
 core/camera_registry.py  CameraRegistry — discovers cameras at startup, per-camera locks,
                          running-cam ref so Snapshotter can capture from live feed directly
 core/square.py           SquareMockClient (active) + SquareClient skeleton
-core/mdb.py              MDB Pi Hat stub — implement when hardware arrives (~2026-06-23)
+core/mdb.py              MdbReader (QThread) — cashless peripheral; bridges KreaTouch vends → Square
 ui/theme.py              Colours, button stylesheets, WINDOWS
 ui/header.py             HeaderWidget — star, logo, tab nav, clock
 ui/screens/              dashboard.py · system.py

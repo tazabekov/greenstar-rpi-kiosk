@@ -16,6 +16,7 @@ class HealthMonitor(QObject):
         self._throttle     = 0
         self._camera_ok    = True
         self._firestore_ok = True
+        self._mdb_ok       = True   # True by default; only False after a confirmed failure
 
     def on_cpu(self, value: float):
         self._cpu = value
@@ -41,8 +42,14 @@ class HealthMonitor(QObject):
         self._firestore_ok = ok
         self._evaluate()
 
+    def on_mdb_ok(self, ok: bool):
+        self._mdb_ok = ok
+        self._evaluate()
+
     def _evaluate(self):
-        if not self._firestore_ok:
+        if not self._mdb_ok:
+            color, reason = "red", "MDB hat not responding"
+        elif not self._firestore_ok:
             color, reason = "red", "Firestore write failed"
         elif not self._camera_ok:
             color, reason = "yellow", "Camera offline"

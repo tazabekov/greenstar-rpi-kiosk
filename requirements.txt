@@ -12,3 +12,6 @@ python-dotenv
 
 # Square Terminal API (optional — falls back to mock if SQUARE_ACCESS_TOKEN not set)
 requests
+
+# MDB Pi Hat serial communication (optional — reader disabled if port not found)
+pyserial

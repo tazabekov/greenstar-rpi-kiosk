@@ -25,6 +25,7 @@ from core.reporter import Reporter
 from core.sampler import DataSampler
 from core.snapshotter import Snapshotter
 from core.crypto_session import make_crypto_session_manager
+from core.mdb import make_mdb_reader
 from core.square import make_square_client
 from ui.theme import BG_DARK, GLOBAL_STYLESHEET
 from ui.header import HeaderWidget
@@ -167,6 +168,12 @@ class MainWindow(QWidget):
         bus.snapshot_interval_changed.connect(self._snapshotter.set_interval)
         self._snapshotter.start()
 
+        # MDB Pi Hat — cashless peripheral; no-op when port unavailable
+        self._mdb = make_mdb_reader(self)
+        if self._mdb:
+            self._mdb.mdb_ok_changed.connect(self._health.on_mdb_ok)
+            self._mdb.start()
+
         # Auto-selects SquareClient when SQUARE_ACCESS_TOKEN is in .env, else mock
         self._square = make_square_client(self)
         self._crypto = make_crypto_session_manager(self)
@@ -209,6 +216,8 @@ class MainWindow(QWidget):
         self._reporter.stop()
         self._snapshotter.stop()
         self._sampler.stop()
+        if self._mdb:
+            self._mdb.stop()
         super().closeEvent(event)
 
     def paintEvent(self, event):

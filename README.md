@@ -12,10 +12,10 @@ Connect a **KreaTouch coffee vending machine** to a **Square payment terminal** 
 
 ```
 KreaTouch vending machine
-        │  MDB protocol
+        │  MDB protocol  (Right / Peripheral port on hat — see MDB section)
         ▼
-MDB Pi Hat  (USB adapter — https://docs.qibixx.com/mdb-products/mdb-pi-hat)
-        │  USB serial  /dev/ttyUSB0 or /dev/ttyACM0
+MDB Pi Hat  (https://docs.qibixx.com/mdb-products/mdb-pi-hat)
+        │  USB serial /dev/ttyACM0  (or UART /dev/ttyS0 on Pi 5)
         ▼
 Raspberry Pi 5  (this device, 800×480 touchscreen)
         │  HTTPS — Square Web API
@@ -43,7 +43,7 @@ Square Payment Terminal
 | Periodic camera snapshot → Firebase Storage | ✅ All cameras snapshotted; works during live feed |
 | Hardware status strip (throttle/fan/disk) | ✅ Live on System screen |
 | Health status indicator | ✅ Shipped — green/yellow/red status in header and System screen |
-| MDB Pi Hat integration | ⏳ Hardware arriving ~2026-06-23 |
+| MDB Pi Hat integration | ✅ Implemented — `core/mdb.py` (cashless peripheral mode) |
 | Square Web API integration | ✅ Live — Square Terminal paired, production credentials set |
 | Crypto payment mode | ✅ Shipped — Firestore session listener, Terminal QR action, amber header pill |
 
@@ -58,14 +58,14 @@ greenstar-rpi-kiosk/
 │   ├── bus.py                  # AppBus singleton — app-wide Qt signals
 │   ├── models.py               # Transaction + TransactionEvent dataclasses
 │   ├── sampler.py              # DataSampler — CPU%, temperature, fan, disk, throttle signals via psutil
-│   ├── health.py               # HealthMonitor — aggregates cpu/temp/disk/throttle/camera/firestore signals
+│   ├── health.py               # HealthMonitor — aggregates cpu/temp/disk/throttle/camera/firestore/mdb
 │   ├── reporter.py             # GKM Reporter — heartbeat + transaction sync to Firestore
 │   ├── snapshotter.py          # Snapshotter — periodic camera JPEG → Firebase Storage (all cameras)
 │   ├── camera_registry.py      # CameraRegistry — discovers cameras, per-camera locks + running-cam ref
 │   ├── square.py               # SquareMockClient (active) + SquareClient
 │   ├── crypto_session.py       # CryptoSessionManager — Firestore listener + Terminal QR + BitPay polling
 │   ├── bitpay.py               # BitPayMockClient (active) + BitPayClient stub; make_bitpay_client()
-│   └── mdb.py                  # MDB Pi Hat stub (to be implemented)
+│   └── mdb.py                  # MdbReader — cashless peripheral; bridges KreaTouch vends to Square
 ├── ui/
 │   ├── theme.py                # Colour palette, button stylesheets, WINDOWS
 │   ├── header.py               # HeaderWidget: star icon + logo + tab nav + clock
@@ -110,6 +110,7 @@ All components communicate via `bus` (singleton `AppBus`):
 | `camera_ok_changed` | `bool` | MainWindow (once at startup) | HealthMonitor |
 | `payment_cancel_requested` | `tx_id` | PaymentModal (Cancel button) | SquareClient |
 | `crypto_session_changed` | `session dict \| None` | CryptoSessionManager | HeaderWidget (pill) |
+| `mdb_ok_changed` *(on MdbReader)* | `bool` | MdbReader | HealthMonitor (`on_mdb_ok`) |
 
 ### Transaction Event Log
 
@@ -180,17 +181,110 @@ This line appears in the log and is **harmless**. Xwayland windows cannot reques
 
 ## MDB Pi Hat Integration (`core/mdb.py`)
 
-Hardware arrives ~2026-06-23. See `core/mdb.py` for the planned interface.
+`MdbReader` runs as a background `QThread`. It opens the Pi Hat serial port, configures the hat as a **cashless peripheral** (MDB address `0x10`), and bridges every KreaTouch vend event into the Square/crypto payment flow.
 
-Steps to wire up:
-1. Connect MDB Pi Hat USB → RPi5
-2. Confirm device node: `ls /dev/ttyUSB* /dev/ttyACM*`
-3. Implement `MdbReader(QObject)` in `core/mdb.py` using `pyserial`
-4. On each vend event, create a `Transaction` (status="pending") and call `bus.transaction_added.emit(tx)`
-5. Emit `bus.payment_requested(tx.tx_id, amount, "fiat")` to trigger Square checkout
-6. On `bus.payment_result`, emit MDB VEND APPROVED or VEND DENIED to the machine
+### Hardware connection
 
-Install pyserial when ready: `pip3 install pyserial`
+```
+KreaTouch  →  MDB cable  →  Right (Peripheral) port on Pi Hat
+                             ↑ NOT the left port — that's the VMC/master side
+Pi Hat  →  USB  →  RPi5   /dev/ttyACM0
+      or   UART GPIO        /dev/ttyS0  (Pi 5 only)
+```
+
+**Jumper Set 1** must be **REMOVED** (Split Mode). Do not install them horizontally — that's sniff mode, which bridges both ports and prevents cashless peripheral operation.
+
+**USB Toggle Jumper** (on Pi Hat): must be **closed** when using USB, **open** for UART.
+
+### Setup
+
+```bash
+pip3 install pyserial
+
+# Quick sanity check — should return firmware version:
+sudo minicom -b 115200 -D /dev/ttyACM0
+# type V then Enter → v,<version>,<serial>
+
+# If using UART (Pi 5 GPIO), first enable it:
+# /boot/firmware/config.txt:
+#   dtoverlay=disable-bt
+#   enable_uart=1
+#   dtparam=uart0=on
+# /boot/firmware/cmdline.txt: remove console=serial0,115200
+# sudo systemctl disable hciuart
+# reboot
+```
+
+### Serial protocol (Pi Hat API)
+
+All commands are plain text, `\n`-terminated, 115200 8N1.
+
+| We send | Hat/VMC responds | Meaning |
+|---|---|---|
+| `C,SETCONF,mdb-addr=0x10` | — | Set cashless peripheral address |
+| `C,1` | `c,STATUS,ENABLED` | Enable; VMC acknowledged us |
+| (listen) | `c,STATUS,VEND,1.50,3` | Customer selected item 3 at $1.50 |
+| `C,VEND,1.50` | `c,VEND,SUCCESS` | Approve — KreaTouch dispenses |
+| `C,STOP` | — | Deny — KreaTouch cancels vend |
+| `C,0` | — | Disable peripheral (sent on shutdown) |
+
+### Vend flow
+
+```
+KreaTouch selects item
+  → c,STATUS,VEND,<amount>,<item>          (MDB in)
+  → Transaction created (status=pending)
+  → bus.transaction_added(tx)
+  → bus.payment_requested(tx_id, amount, type)
+      → SquareClient / CryptoSessionManager
+          → payment completes / fails
+  → bus.payment_result(tx_id, success, msg)
+  → C,VEND,<amount>  (approve)             (MDB out)
+     or C,STOP        (deny)
+```
+
+### Environment variable
+
+```
+GKM_MDB_PORT=    # leave blank to auto-detect (checks ttyACM0, ttyUSB0, ttyS0)
+```
+
+### First-time setup checklist (run after reconnecting hardware)
+
+```bash
+# 1. Install pyserial if not yet installed
+pip3 install pyserial
+
+# 2. Confirm Pi Hat is visible on USB
+ls /dev/ttyACM* /dev/ttyUSB*        # expect /dev/ttyACM0
+
+# 3. Sanity-check: Pi Hat responds to version query
+#    (Ctrl-A X to exit minicom)
+sudo minicom -b 115200 -D /dev/ttyACM0
+#    type:  V  then Enter
+#    expect: v,<firmware-version>,<serial-number>
+
+# 4. Start the kiosk
+DISPLAY=:0 python3 main.py
+# Watch the log for:
+#   MDB: opened /dev/ttyACM0 at 115200 baud
+#   MDB: peripheral enabled — waiting for vend requests
+# If you see "INACTIVE", KreaTouch is not talking to the hat —
+# double-check the Right port and jumpers (see Hardware connection above).
+```
+
+### Jumper reference (Pi Hat top view, USB on left)
+
+```
+  [Left port — VMC master]     [Right port — Peripheral/slave]  ← KreaTouch goes here
+         │                              │
+  Jumper Set 1:  REMOVE both jumpers  (horizontal = sniff mode — wrong for us)
+  USB Toggle Jumper: CLOSE  (needed for USB /dev/ttyACM0 mode)
+```
+
+### Health indicator
+
+`MdbReader` emits `mdb_ok_changed(bool)` which feeds `HealthMonitor`. The header turns **red** if the hat stops responding or reports `INACTIVE`. If `GKM_MDB_PORT` is unset and no port is auto-detected, the reader is disabled and health stays green.
 
 ## Square Integration (`core/square.py`)
 
