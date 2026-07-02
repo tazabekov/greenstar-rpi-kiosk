@@ -188,14 +188,28 @@ This line appears in the log and is **harmless**. Xwayland windows cannot reques
 ```
 KreaTouch  →  MDB cable  →  Right (Peripheral) port on Pi Hat
                              ↑ NOT the left port — that's the VMC/master side
-Pi Hat  →  USB  →  RPi5   /dev/ttyACM0
-      or   UART GPIO        /dev/serial0  →  ttyAMA10  (Pi 5; primary UART symlink)
-                             /dev/ttyS0   (older Pi models)
+Pi Hat  →  UART GPIO 40-pin  →  /dev/serial0  →  ttyAMA10  (Pi 5 — CURRENT SETUP)
+      or   USB               →  /dev/ttyACM0  (alternative — not used here)
 ```
 
-**Jumper Set 1** must be **REMOVED** (Split Mode). Do not install them horizontally — that's sniff mode, which bridges both ports and prevents cashless peripheral operation.
+**Jumper Set 1** must be **REMOVED** (Split Mode). Do not install them horizontally — that's sniff mode, which bridges both ports and prevents cashless peripheral operation. **Done 2026-07-01.**
 
-**USB Toggle Jumper** (on Pi Hat): must be **closed** when using USB, **open** for UART.
+**USB Toggle Jumper** (on Pi Hat): must be **OPEN** for UART/GPIO mode (no jumper installed).
+
+### Current Pi 5 UART setup (done 2026-07-01)
+
+Bluetooth was claiming `/dev/serial0` at boot via `hci_uart_bcm`. Fixed by:
+
+```bash
+# /boot/firmware/config.txt — added before dtoverlay=uart0:
+dtoverlay=disable-bt
+
+# Disabled hciuart service:
+sudo systemctl disable hciuart
+sudo reboot
+```
+
+After reboot, `/dev/serial0` should be free. Verify with the version check below.
 
 ### Setup
 
@@ -203,17 +217,15 @@ Pi Hat  →  USB  →  RPi5   /dev/ttyACM0
 pip3 install pyserial
 
 # Quick sanity check — should return firmware version:
-sudo minicom -b 115200 -D /dev/ttyACM0
-# type V then Enter → v,<version>,<serial>
-
-# If using UART (Pi 5 GPIO), first enable it:
-# /boot/firmware/config.txt:
-#   dtoverlay=disable-bt
-#   enable_uart=1
-#   dtparam=uart0=on
-# /boot/firmware/cmdline.txt: remove console=serial0,115200
-# sudo systemctl disable hciuart
-# reboot
+python3 -c "
+import serial, time
+s = serial.Serial('/dev/serial0', 115200, timeout=2)
+s.write(b'V\n')
+time.sleep(0.5)
+print(s.read(200))
+s.close()
+"
+# expect: b'v,<firmware-version>,<serial-number>\r\n'
 ```
 
 ### Serial protocol (Pi Hat API)
@@ -285,8 +297,11 @@ DISPLAY=:0 python3 main.py
   [Left port — VMC master]     [Right port — Peripheral/slave]  ← KreaTouch goes here
          │                              │
   Jumper Set 1:  REMOVE both jumpers  (horizontal = sniff mode — wrong for us)
-  USB Toggle Jumper: CLOSE  (needed for USB /dev/ttyACM0 mode)
+  USB Toggle Jumper: OPEN / removed   (UART GPIO mode — current setup)
+                     CLOSE            (only needed for USB /dev/ttyACM0 mode)
 ```
+
+**Current hardware state (2026-07-01):** Jumper Set 1 removed ✅, USB Toggle open ✅, Bluetooth disabled ✅. Next step after reboot: run version check to confirm hat responds on `/dev/serial0`.
 
 ### Health indicator
 
